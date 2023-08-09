@@ -1,6 +1,6 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: MrHua269 <wangxyper@163.com>
-Date: Wed, 9 Aug 2023 21:28:39 +0800
+Date: Wed, 9 Aug 2023 22:04:22 +0800
 Subject: [PATCH] DirtyMolia patches!
 
 
@@ -759,7 +759,7 @@ index 86303180cbd29669e7eef3482b73cfecbdb82d06..6c21857d8fbdbb011427f76871242b28
                  Location from = new Location(this.level().getWorld(), this.xo, this.yo, this.zo, this.yRotO, this.xRotO);
                  Location to = new Location (this.level().getWorld(), this.getX(), this.getY(), this.getZ(), this.getYRot(), this.getXRot());
 diff --git a/src/main/java/net/minecraft/world/level/Level.java b/src/main/java/net/minecraft/world/level/Level.java
-index a283968a3f1cb45d4e86f022be0ac96e3224df96..507342e4eb6c92f504b6a103afa41eb60e0d9ea9 100644
+index b3594b62ce4aae73949bc7ab64d4a8c2b2a28fb0..19c9af48b707ca3d997316a27e177ca0f03c06ea 100644
 --- a/src/main/java/net/minecraft/world/level/Level.java
 +++ b/src/main/java/net/minecraft/world/level/Level.java
 @@ -15,6 +15,8 @@ import java.util.function.Consumer;
@@ -808,16 +808,16 @@ index a283968a3f1cb45d4e86f022be0ac96e3224df96..507342e4eb6c92f504b6a103afa41eb6
              if (previous != null) {
                  return previous.getHandle();
              }
-@@ -622,7 +625,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
- 
+@@ -623,7 +626,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
      @Override
      public boolean setBlock(BlockPos pos, BlockState state, int flags, int maxUpdateDepth) {
+         io.papermc.paper.util.TickThread.ensureTickThread((ServerLevel)this, pos, "Updating block asynchronously"); // Folia - region threading
 -        io.papermc.paper.threadedregions.RegionizedWorldData worldData = this.getCurrentWorldData(); // Folia - region threading
 +        io.papermc.paper.threadedregions.RegionizedWorldData worldData =  Level.WORLD_DATA_POOL.getDataAnyThread(this,pos); // Folia - region threading
          // CraftBukkit start - tree generation
          if (worldData.captureTreeGeneration) { // Folia - region threading
              // Paper start
-@@ -749,7 +752,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+@@ -750,7 +753,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
                  // CraftBukkit start
                  iblockdata1.updateIndirectNeighbourShapes(this, blockposition, k, j - 1); // Don't call an event for the old block to limit event spam
                  CraftWorld world = ((ServerLevel) this).getWorld();
@@ -826,7 +826,7 @@ index a283968a3f1cb45d4e86f022be0ac96e3224df96..507342e4eb6c92f504b6a103afa41eb6
                      BlockPhysicsEvent event = new BlockPhysicsEvent(world.getBlockAt(blockposition.getX(), blockposition.getY(), blockposition.getZ()), CraftBlockData.fromData(iblockdata));
                      this.getCraftServer().getPluginManager().callEvent(event);
  
-@@ -763,7 +766,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+@@ -764,7 +767,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
              }
  
              // CraftBukkit start - SPIGOT-5710
@@ -835,7 +835,7 @@ index a283968a3f1cb45d4e86f022be0ac96e3224df96..507342e4eb6c92f504b6a103afa41eb6
                  this.onBlockStateChange(blockposition, iblockdata1, iblockdata2);
              }
              // CraftBukkit end
-@@ -842,7 +845,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+@@ -843,7 +846,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
  
      @Override
      public void neighborShapeChanged(Direction direction, BlockState neighborState, BlockPos pos, BlockPos neighborPos, int flags, int maxUpdateDepth) {
@@ -844,7 +844,7 @@ index a283968a3f1cb45d4e86f022be0ac96e3224df96..507342e4eb6c92f504b6a103afa41eb6
      }
  
      @Override
-@@ -893,8 +896,8 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+@@ -894,8 +897,8 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
      @Override
      public BlockState getBlockState(BlockPos pos) {
          // CraftBukkit start - tree generation
@@ -855,7 +855,7 @@ index a283968a3f1cb45d4e86f022be0ac96e3224df96..507342e4eb6c92f504b6a103afa41eb6
              if (previous != null) {
                  return previous.getHandle();
              }
-@@ -985,7 +988,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+@@ -986,7 +989,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
      }
  
      public void addBlockEntityTicker(TickingBlockEntity ticker) {
@@ -864,7 +864,7 @@ index a283968a3f1cb45d4e86f022be0ac96e3224df96..507342e4eb6c92f504b6a103afa41eb6
      }
  
      protected void tickBlockEntities() {
-@@ -1139,7 +1142,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+@@ -1140,7 +1143,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
          // Folia end - region threading
          // Paper start - Optimize capturedTileEntities lookup
          net.minecraft.world.level.block.entity.BlockEntity blockEntity;
@@ -873,7 +873,7 @@ index a283968a3f1cb45d4e86f022be0ac96e3224df96..507342e4eb6c92f504b6a103afa41eb6
              return blockEntity;
          }
          // Paper end
-@@ -1152,8 +1155,8 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+@@ -1153,8 +1156,8 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
  
          if (!this.isOutsideBuildHeight(blockposition)) {
              // CraftBukkit start
@@ -975,10 +975,10 @@ index 16e46bb6205c3f7444e864c553e8072f0519746d..26ce1f35795454a855be27623c154e93
  
  
 diff --git a/src/main/java/net/minecraft/world/level/chunk/LevelChunk.java b/src/main/java/net/minecraft/world/level/chunk/LevelChunk.java
-index a7c401fd489b7a2cdd4d4a9147ed8b915c63732d..9f54db415e50edb0c2a33ef939108866f1999d5e 100644
+index 59d08ab6a436a6c87114abd5440c3ea889fa8a1d..fb6b15087a84e97de5633cc0f24aef1f1329961c 100644
 --- a/src/main/java/net/minecraft/world/level/chunk/LevelChunk.java
 +++ b/src/main/java/net/minecraft/world/level/chunk/LevelChunk.java
-@@ -515,7 +515,7 @@ public class LevelChunk extends ChunkAccess {
+@@ -516,7 +516,7 @@ public class LevelChunk extends ChunkAccess {
                      return null;
                  } else {
                      // CraftBukkit - Don't place while processing the BlockPlaceEvent, unless it's a BlockContainer. Prevents blocks such as TNT from activating when cancelled.
@@ -987,7 +987,7 @@ index a7c401fd489b7a2cdd4d4a9147ed8b915c63732d..9f54db415e50edb0c2a33ef939108866
                          iblockdata.onPlace(this.level, blockposition, iblockdata1, flag);
                      }
  
-@@ -562,7 +562,7 @@ public class LevelChunk extends ChunkAccess {
+@@ -563,7 +563,7 @@ public class LevelChunk extends ChunkAccess {
      @Nullable
      public BlockEntity getBlockEntity(BlockPos pos, LevelChunk.EntityCreationType creationType) {
          // CraftBukkit start
