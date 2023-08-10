@@ -1,0 +1,89 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: MrHua269 <wangxyper@163.com>
+Date: Thu, 10 Aug 2023 16:57:37 +0800
+Subject: [PATCH] Remove thread check & add back teleport sync
+
+
+diff --git a/src/main/java/io/papermc/paper/util/TickThread.java b/src/main/java/io/papermc/paper/util/TickThread.java
+index 3b6c7625cfbef1a3730c6e2e227b8ff667dc2640..3393e9c34ec14a315622f62632a7934c47b67b5a 100644
+--- a/src/main/java/io/papermc/paper/util/TickThread.java
++++ b/src/main/java/io/papermc/paper/util/TickThread.java
+@@ -48,50 +48,50 @@ public class TickThread extends Thread {
+     @Deprecated
+     public static void ensureTickThread(final String reason) {
+         if (!isTickThread()) {
+-            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
+-            throw new IllegalStateException(reason);
++            //MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
++            //throw new IllegalStateException(reason);
+         }
+     }
+ 
+     public static void ensureTickThread(final ServerLevel world, final BlockPos pos, final String reason) {
+         if (!isTickThreadFor(world, pos)) {
+-            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
+-            throw new IllegalStateException(reason);
++            //MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
++            //throw new IllegalStateException(reason);
+         }
+     }
+ 
+     public static void ensureTickThread(final ServerLevel world, final ChunkPos pos, final String reason) {
+         if (!isTickThreadFor(world, pos)) {
+-            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
+-            throw new IllegalStateException(reason);
++            //MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
++            //throw new IllegalStateException(reason);
+         }
+     }
+ 
+     public static void ensureTickThread(final ServerLevel world, final int chunkX, final int chunkZ, final String reason) {
+         if (!isTickThreadFor(world, chunkX, chunkZ)) {
+-            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
+-            throw new IllegalStateException(reason);
++            //MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
++            //throw new IllegalStateException(reason);
+         }
+     }
+ 
+     public static void ensureTickThread(final Entity entity, final String reason) {
+         if (!isTickThreadFor(entity)) {
+-            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
+-            throw new IllegalStateException(reason);
++            //MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
++            //throw new IllegalStateException(reason);
+         }
+     }
+ 
+     public static void ensureTickThread(final ServerLevel world, final AABB aabb, final String reason) {
+         if (!isTickThreadFor(world, aabb)) {
+-            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
+-            throw new IllegalStateException(reason);
++            //MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
++            //throw new IllegalStateException(reason);
+         }
+     }
+ 
+     public static void ensureTickThread(final ServerLevel world, final double blockX, final double blockZ, final String reason) {
+         if (!isTickThreadFor(world, blockX, blockZ)) {
+-            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
+-            throw new IllegalStateException(reason);
++            //MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
++            //throw new IllegalStateException(reason);
+         }
+     }
+ 
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+index 31c685f0f50beb00fd1c3afac9d498d587d50574..5d18a1d28f90338969401086e371d3ed9715656c 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+@@ -1304,7 +1304,8 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+     public boolean teleport(Location location, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause cause, io.papermc.paper.entity.TeleportFlag... flags) {
+         // Folia start - region threading
+         if (true) {
+-            throw new UnsupportedOperationException("Must use teleportAsync while in region threading");
++            //throw new UnsupportedOperationException("Must use teleportAsync while in region threading");
++            return teleportAsync(location,cause).join();
+         }
+         // Folia end - region threading
+         java.util.Set<net.minecraft.world.entity.RelativeMovement> relativeArguments;
