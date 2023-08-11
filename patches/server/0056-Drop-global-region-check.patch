@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: MrHua269 <wangxyper@163.com>
+Date: Fri, 11 Aug 2023 15:36:42 +0800
+Subject: [PATCH] Drop global region check
+
+
+diff --git a/src/main/java/io/papermc/paper/threadedregions/RegionizedServer.java b/src/main/java/io/papermc/paper/threadedregions/RegionizedServer.java
+index 2b13dac6ec7c18e1453ae72a7a65c27cef4fd30b..0f0c5c2e989df9405254c39a32213db0e3dc90bd 100644
+--- a/src/main/java/io/papermc/paper/threadedregions/RegionizedServer.java
++++ b/src/main/java/io/papermc/paper/threadedregions/RegionizedServer.java
+@@ -107,12 +107,15 @@ public final class RegionizedServer {
+     }
+ 
+     public static boolean isGlobalTickThread() {
+-        return INSTANCE.tickHandle == TickRegionScheduler.getCurrentTickingTask();
++        //DirtyMolia start - Drop global region check
++        //return INSTANCE.tickHandle == TickRegionScheduler.getCurrentTickingTask();
++        return true;
++        //Molia end
+     }
+ 
+     public static void ensureGlobalTickThread(final String reason) {
+         if (!isGlobalTickThread()) {
+-            throw new IllegalStateException(reason);
++           throw new IllegalStateException(reason);
+         }
+     }
+ 
