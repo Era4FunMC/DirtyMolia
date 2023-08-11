@@ -1,6 +1,6 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: MrHua269 <wangxyper@163.com>
-Date: Wed, 9 Aug 2023 22:04:22 +0800
+Date: Fri, 11 Aug 2023 11:44:08 +0800
 Subject: [PATCH] DirtyMolia patches!
 
 
@@ -88,7 +88,7 @@ index 190c5f0b02a3d99054704ae1afbffb3498ddffe1..8106114c49e4589a70bf00430a83a132
  
                  if (lastRet == null) {
 diff --git a/src/main/java/io/papermc/paper/chunk/system/entity/EntityLookup.java b/src/main/java/io/papermc/paper/chunk/system/entity/EntityLookup.java
-index 3208d68c0e8220307028acd4bcd859465611f992..4869e434b3465df2d754e2fe582260ea3327222b 100644
+index 0cdf092d5c3f65a23e26f201768c0e2fea1ffe09..1ed093f01b3b8542f5a29ca78a8bd3f242da6605 100644
 --- a/src/main/java/io/papermc/paper/chunk/system/entity/EntityLookup.java
 +++ b/src/main/java/io/papermc/paper/chunk/system/entity/EntityLookup.java
 @@ -18,6 +18,7 @@ import net.minecraft.util.Mth;
@@ -109,7 +109,7 @@ index 3208d68c0e8220307028acd4bcd859465611f992..4869e434b3465df2d754e2fe582260ea
  
          this.entityStatusChange(entity, slices, Visibility.HIDDEN, getEntityStatus(entity), false, !fromDisk, false);
  
-@@ -891,7 +893,8 @@ public final class EntityLookup implements LevelEntityGetter<Entity> {
+@@ -905,7 +907,8 @@ public final class EntityLookup implements LevelEntityGetter<Entity> {
              this.entity.setLevelCallback(NoOpCallback.INSTANCE);
  
              // only AFTER full removal callbacks, so that thread checking will work. // Folia - region threading
@@ -548,7 +548,7 @@ index 74757637e8e762e129b5dc8aa3160d19ad5a019c..40d892f62c04b7415d5d27454507a8ca
  
      public int getSpawnProtectionRadius() {
 diff --git a/src/main/java/net/minecraft/server/level/ChunkMap.java b/src/main/java/net/minecraft/server/level/ChunkMap.java
-index 25fe439c8d1e88a86e85ac9a4761425d98ee6c4f..fcbffa26605cfc1f1ae1b446da4ae9dccaafe554 100644
+index f1f52f9d9f8eafd65b50e3c06c92bcd8fda64286..865ff27260fa3aed12ef9441b8e33ddedec99999 100644
 --- a/src/main/java/net/minecraft/server/level/ChunkMap.java
 +++ b/src/main/java/net/minecraft/server/level/ChunkMap.java
 @@ -86,6 +86,7 @@ import net.minecraft.world.entity.ai.village.poi.PoiManager;
@@ -733,7 +733,7 @@ index e6e42003308c7fc9737cb6d51ffae1d13af2e9e4..9d8e602dfaa287ee1e9d90be55273b8e
  
              if (entity instanceof EnderDragon) {
 diff --git a/src/main/java/net/minecraft/server/level/ServerPlayer.java b/src/main/java/net/minecraft/server/level/ServerPlayer.java
-index 046af13d4cb51d0af63eecbe71e13cb8e5b0e619..813b1d2e9256d3e2cfbd0ff0ec94f4bf9b559307 100644
+index 65d9cc2c90fe47e4902af0966b8d06d2d0ab4edc..71aa5827287f1898c8d982d792033505c3a49463 100644
 --- a/src/main/java/net/minecraft/server/level/ServerPlayer.java
 +++ b/src/main/java/net/minecraft/server/level/ServerPlayer.java
 @@ -1326,7 +1326,7 @@ public class ServerPlayer extends Player {
@@ -759,7 +759,7 @@ index 86303180cbd29669e7eef3482b73cfecbdb82d06..6c21857d8fbdbb011427f76871242b28
                  Location from = new Location(this.level().getWorld(), this.xo, this.yo, this.zo, this.yRotO, this.xRotO);
                  Location to = new Location (this.level().getWorld(), this.getX(), this.getY(), this.getZ(), this.getYRot(), this.getXRot());
 diff --git a/src/main/java/net/minecraft/world/level/Level.java b/src/main/java/net/minecraft/world/level/Level.java
-index b3594b62ce4aae73949bc7ab64d4a8c2b2a28fb0..19c9af48b707ca3d997316a27e177ca0f03c06ea 100644
+index 280a0d9a69c3e87d11009cee59f91e77442a936b..96645628740159c86826dbec308949a08a69ff88 100644
 --- a/src/main/java/net/minecraft/world/level/Level.java
 +++ b/src/main/java/net/minecraft/world/level/Level.java
 @@ -15,6 +15,8 @@ import java.util.function.Consumer;
@@ -817,16 +817,16 @@ index b3594b62ce4aae73949bc7ab64d4a8c2b2a28fb0..19c9af48b707ca3d997316a27e177ca0
          // CraftBukkit start - tree generation
          if (worldData.captureTreeGeneration) { // Folia - region threading
              // Paper start
-@@ -750,7 +753,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
-                 // CraftBukkit start
+@@ -751,7 +754,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
                  iblockdata1.updateIndirectNeighbourShapes(this, blockposition, k, j - 1); // Don't call an event for the old block to limit event spam
                  CraftWorld world = ((ServerLevel) this).getWorld();
+                 boolean cancelledUpdates = false; // Paper
 -                if (world != null && ((ServerLevel)this).getCurrentWorldData().hasPhysicsEvent) { // Paper // Folia - region threading
 +                if (world != null && (Level.WORLD_DATA_POOL.getDataAnyThread(this,blockposition).hasPhysicsEvent)) { // Paper // Folia - region threading
                      BlockPhysicsEvent event = new BlockPhysicsEvent(world.getBlockAt(blockposition.getX(), blockposition.getY(), blockposition.getZ()), CraftBlockData.fromData(iblockdata));
                      this.getCraftServer().getPluginManager().callEvent(event);
  
-@@ -764,7 +767,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+@@ -765,7 +768,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
              }
  
              // CraftBukkit start - SPIGOT-5710
@@ -835,7 +835,7 @@ index b3594b62ce4aae73949bc7ab64d4a8c2b2a28fb0..19c9af48b707ca3d997316a27e177ca0
                  this.onBlockStateChange(blockposition, iblockdata1, iblockdata2);
              }
              // CraftBukkit end
-@@ -843,7 +846,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+@@ -844,7 +847,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
  
      @Override
      public void neighborShapeChanged(Direction direction, BlockState neighborState, BlockPos pos, BlockPos neighborPos, int flags, int maxUpdateDepth) {
@@ -844,7 +844,7 @@ index b3594b62ce4aae73949bc7ab64d4a8c2b2a28fb0..19c9af48b707ca3d997316a27e177ca0
      }
  
      @Override
-@@ -894,8 +897,8 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+@@ -895,8 +898,8 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
      @Override
      public BlockState getBlockState(BlockPos pos) {
          // CraftBukkit start - tree generation
@@ -855,7 +855,7 @@ index b3594b62ce4aae73949bc7ab64d4a8c2b2a28fb0..19c9af48b707ca3d997316a27e177ca0
              if (previous != null) {
                  return previous.getHandle();
              }
-@@ -986,7 +989,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+@@ -987,7 +990,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
      }
  
      public void addBlockEntityTicker(TickingBlockEntity ticker) {
@@ -864,7 +864,7 @@ index b3594b62ce4aae73949bc7ab64d4a8c2b2a28fb0..19c9af48b707ca3d997316a27e177ca0
      }
  
      protected void tickBlockEntities() {
-@@ -1140,7 +1143,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+@@ -1141,7 +1144,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
          // Folia end - region threading
          // Paper start - Optimize capturedTileEntities lookup
          net.minecraft.world.level.block.entity.BlockEntity blockEntity;
@@ -873,7 +873,7 @@ index b3594b62ce4aae73949bc7ab64d4a8c2b2a28fb0..19c9af48b707ca3d997316a27e177ca0
              return blockEntity;
          }
          // Paper end
-@@ -1153,8 +1156,8 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+@@ -1154,8 +1157,8 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
  
          if (!this.isOutsideBuildHeight(blockposition)) {
              // CraftBukkit start
