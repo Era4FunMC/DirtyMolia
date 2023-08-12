@@ -1,16 +1,38 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: MrHua269 <wangxyper@163.com>
-Date: Thu, 10 Aug 2023 16:57:37 +0800
-Subject: [PATCH] Remove thread check & add back teleport sync
+Date: Fri, 11 Aug 2023 22:39:24 +0800
+Subject: [PATCH] Drop tick thread checks
 
 
+diff --git a/src/main/java/io/papermc/paper/threadedregions/RegionizedServer.java b/src/main/java/io/papermc/paper/threadedregions/RegionizedServer.java
+index 00d79c8095ec689b4a30648665c8fc0843783fd9..1dd3afb9c204a9f28610b43af398103e0c989113 100644
+--- a/src/main/java/io/papermc/paper/threadedregions/RegionizedServer.java
++++ b/src/main/java/io/papermc/paper/threadedregions/RegionizedServer.java
+@@ -98,12 +98,15 @@ public final class RegionizedServer {
+     }
+ 
+     public static boolean isGlobalTickThread() {
+-        return INSTANCE.tickHandle == TickRegionScheduler.getCurrentTickingTask();
++        //DirtyMolia start - Drop global region check
++        //return INSTANCE.tickHandle == TickRegionScheduler.getCurrentTickingTask();
++        return true;
++        //Molia end
+     }
+ 
+     public static void ensureGlobalTickThread(final String reason) {
+         if (!isGlobalTickThread()) {
+-            throw new IllegalStateException(reason);
++           throw new IllegalStateException(reason);
+         }
+     }
+ 
 diff --git a/src/main/java/io/papermc/paper/util/TickThread.java b/src/main/java/io/papermc/paper/util/TickThread.java
-index 3b6c7625cfbef1a3730c6e2e227b8ff667dc2640..3393e9c34ec14a315622f62632a7934c47b67b5a 100644
+index 492e6a512343001d3d772d2d8b427d2d84e89da5..a7fc98fb5365b3d0422415aa83f4ca9b9ed21f24 100644
 --- a/src/main/java/io/papermc/paper/util/TickThread.java
 +++ b/src/main/java/io/papermc/paper/util/TickThread.java
-@@ -48,50 +48,50 @@ public class TickThread extends Thread {
-     @Deprecated
+@@ -48,56 +48,56 @@ public class TickThread extends Thread {
      public static void ensureTickThread(final String reason) {
+         if (dev.kaiijumc.kaiiju.KaiijuConfig.disableEnsureTickThreadChecks) return; // Kaiiju
          if (!isTickThread()) {
 -            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
 -            throw new IllegalStateException(reason);
@@ -20,6 +42,7 @@ index 3b6c7625cfbef1a3730c6e2e227b8ff667dc2640..3393e9c34ec14a315622f62632a7934c
      }
  
      public static void ensureTickThread(final ServerLevel world, final BlockPos pos, final String reason) {
+         if (dev.kaiijumc.kaiiju.KaiijuConfig.disableEnsureTickThreadChecks) return; // Kaiiju
          if (!isTickThreadFor(world, pos)) {
 -            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
 -            throw new IllegalStateException(reason);
@@ -29,6 +52,7 @@ index 3b6c7625cfbef1a3730c6e2e227b8ff667dc2640..3393e9c34ec14a315622f62632a7934c
      }
  
      public static void ensureTickThread(final ServerLevel world, final ChunkPos pos, final String reason) {
+         if (dev.kaiijumc.kaiiju.KaiijuConfig.disableEnsureTickThreadChecks) return; // Kaiiju
          if (!isTickThreadFor(world, pos)) {
 -            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
 -            throw new IllegalStateException(reason);
@@ -38,6 +62,7 @@ index 3b6c7625cfbef1a3730c6e2e227b8ff667dc2640..3393e9c34ec14a315622f62632a7934c
      }
  
      public static void ensureTickThread(final ServerLevel world, final int chunkX, final int chunkZ, final String reason) {
+         if (dev.kaiijumc.kaiiju.KaiijuConfig.disableEnsureTickThreadChecks) return; // Kaiiju
          if (!isTickThreadFor(world, chunkX, chunkZ)) {
 -            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
 -            throw new IllegalStateException(reason);
@@ -47,6 +72,7 @@ index 3b6c7625cfbef1a3730c6e2e227b8ff667dc2640..3393e9c34ec14a315622f62632a7934c
      }
  
      public static void ensureTickThread(final Entity entity, final String reason) {
+         if (dev.kaiijumc.kaiiju.KaiijuConfig.disableEnsureTickThreadChecks) return; // Kaiiju
          if (!isTickThreadFor(entity)) {
 -            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
 -            throw new IllegalStateException(reason);
@@ -56,6 +82,7 @@ index 3b6c7625cfbef1a3730c6e2e227b8ff667dc2640..3393e9c34ec14a315622f62632a7934c
      }
  
      public static void ensureTickThread(final ServerLevel world, final AABB aabb, final String reason) {
+         if (dev.kaiijumc.kaiiju.KaiijuConfig.disableEnsureTickThreadChecks) return; // Kaiiju
          if (!isTickThreadFor(world, aabb)) {
 -            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
 -            throw new IllegalStateException(reason);
@@ -65,6 +92,7 @@ index 3b6c7625cfbef1a3730c6e2e227b8ff667dc2640..3393e9c34ec14a315622f62632a7934c
      }
  
      public static void ensureTickThread(final ServerLevel world, final double blockX, final double blockZ, final String reason) {
+         if (dev.kaiijumc.kaiiju.KaiijuConfig.disableEnsureTickThreadChecks) return; // Kaiiju
          if (!isTickThreadFor(world, blockX, blockZ)) {
 -            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
 -            throw new IllegalStateException(reason);
@@ -74,10 +102,10 @@ index 3b6c7625cfbef1a3730c6e2e227b8ff667dc2640..3393e9c34ec14a315622f62632a7934c
      }
  
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index 26d51bb88696e00a7fd194d45c23a8f4b034464f..7e2aba400bc9746d19f0816734180c3d253e2232 100644
+index 36fc7444514a82532731026a0c4402d2ec04e9d2..014aa71d311e58646e2d316b50fb287871f7d347 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-@@ -1306,7 +1306,8 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+@@ -1301,7 +1301,8 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
      public boolean teleport(Location location, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause cause, io.papermc.paper.entity.TeleportFlag... flags) {
          // Folia start - region threading
          if (true) {

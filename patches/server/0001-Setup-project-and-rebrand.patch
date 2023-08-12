@@ -1,113 +1,114 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: M2ke4U <wangxyper@163.com>
-Date: Sat, 17 Jun 2023 08:11:45 +0800
-Subject: [PATCH] Setup and rebrand
+From: MrHua269 <wangxyper@163.com>
+Date: Fri, 11 Aug 2023 22:30:38 +0800
+Subject: [PATCH] Setup project and rebrand
 
 
 diff --git a/build.gradle.kts b/build.gradle.kts
-index 9ee90bc753e65f9dd532f28ec75cc16bf16486c8..f42dbf797dddc14324ee720c2aefc0310f6ac82e 100644
+index f29c4621b3ab04aec026c9062c979a659d620738..4f8bf9be1505035f3ac1ccbe82474c4886eb7a8a 100644
 --- a/build.gradle.kts
 +++ b/build.gradle.kts
 @@ -14,7 +14,7 @@ val alsoShade: Configuration by configurations.creating
  
  dependencies {
      // Folia start
--    implementation(project(":folia-api"))
-+    implementation(project(":molia-api")) //Molia
+-    implementation(project(":kaiiju-api")) // Kaiiju
++    implementation(project(":molia-api")) // Kaiiju //Molia
      implementation("io.papermc.paper:paper-mojangapi:1.19.3-R0.1-SNAPSHOT") {
          exclude("io.papermc.paper", "paper-api")
      }
-@@ -76,7 +76,7 @@ tasks.jar {
+@@ -87,7 +87,7 @@ tasks.jar {
          attributes(
              "Main-Class" to "org.bukkit.craftbukkit.Main",
              "Implementation-Title" to "CraftBukkit",
--            "Implementation-Version" to "git-Folia-$implementationVersion", // Folia
-+            "Implementation-Version" to "git-Molia-$implementationVersion", // Folia //Molia
+-            "Implementation-Version" to "git-Kaiiju-$implementationVersion", // Folia // Kaiiju
++            "Implementation-Version" to "git-Molia-$implementationVersion", // Folia // Kaiiju //Molia
              "Implementation-Vendor" to date, // Paper
              "Specification-Title" to "Bukkit",
              "Specification-Version" to project.version,
 diff --git a/src/main/java/com/destroystokyo/paper/Metrics.java b/src/main/java/com/destroystokyo/paper/Metrics.java
-index cb60d58d4a7556dd896f31d0cd249f860bb3ef84..92b98d808cc5a0c3eed87ff02af55d2676ab6cd5 100644
+index c9ccc016044f2b179c291d9d5b2a43967cca119a..f43981204efafb305ac9d689d9c0877796ae5580 100644
 --- a/src/main/java/com/destroystokyo/paper/Metrics.java
 +++ b/src/main/java/com/destroystokyo/paper/Metrics.java
 @@ -593,7 +593,7 @@ public class Metrics {
              boolean logFailedRequests = config.getBoolean("logFailedRequests", false);
              // Only start Metrics, if it's enabled in the config
              if (config.getBoolean("enabled", true)) {
--                Metrics metrics = new Metrics("Folia", serverUUID, logFailedRequests, Bukkit.getLogger()); // Folia - we have our own bstats page
-+                Metrics metrics = new Metrics("Molia", serverUUID, logFailedRequests, Bukkit.getLogger()); // Folia - we have our own bstats page //Molia
+-                Metrics metrics = new Metrics("Kaiiju", serverUUID, logFailedRequests, Bukkit.getLogger()); // Folia - we have our own bstats page // Kaiiju
++                Metrics metrics = new Metrics("Molia", serverUUID, logFailedRequests, Bukkit.getLogger()); // Folia - we have our own bstats page // Kaiiju //Molia
  
                  metrics.addCustomChart(new Metrics.SimplePie("minecraft_version", () -> {
                      String minecraftVersion = Bukkit.getVersion();
-@@ -611,7 +611,7 @@ public class Metrics {
+@@ -611,8 +611,7 @@ public class Metrics {
                  } else {
                      paperVersion = "unknown";
                  }
 -                metrics.addCustomChart(new Metrics.SimplePie("folia_version", () -> paperVersion)); // Folia - we have our own bstats page
-+                metrics.addCustomChart(new Metrics.SimplePie("molia_version", () -> paperVersion)); // Folia - we have our own bstats page //Molia
+-                metrics.addCustomChart(new Metrics.SimplePie("kaiiju_version", () -> (org.bukkit.craftbukkit.Main.class.getPackage().getImplementationVersion() != null) ? org.bukkit.craftbukkit.Main.class.getPackage().getImplementationVersion() : "unknown")); // Kaiiju
++                metrics.addCustomChart(new Metrics.SimplePie("molia_version", () -> (org.bukkit.craftbukkit.Main.class.getPackage().getImplementationVersion() != null) ? org.bukkit.craftbukkit.Main.class.getPackage().getImplementationVersion() : "unknown")); // Kaiiju //Molia
  
                  metrics.addCustomChart(new Metrics.DrilldownPie("java_version", () -> {
                      Map<String, Map<String, Integer>> map = new HashMap<>();
 diff --git a/src/main/java/com/destroystokyo/paper/PaperVersionFetcher.java b/src/main/java/com/destroystokyo/paper/PaperVersionFetcher.java
-index e2f704c115fd6e00960bb56bb0779f1100c89c17..b6a85990d7ec8edd55dd61d3f1c3156e1fe17817 100644
+index 95bc514df2022dde265b84490d3d0db002685024..0e892a6f4bc693b7923e1d2d0938969d43f6cb55 100644
 --- a/src/main/java/com/destroystokyo/paper/PaperVersionFetcher.java
 +++ b/src/main/java/com/destroystokyo/paper/PaperVersionFetcher.java
-@@ -20,7 +20,7 @@ import java.util.stream.StreamSupport;
- public class PaperVersionFetcher implements VersionFetcher {
+@@ -21,7 +21,7 @@ public class PaperVersionFetcher implements VersionFetcher {
      private static final java.util.regex.Pattern VER_PATTERN = java.util.regex.Pattern.compile("^([0-9\\.]*)\\-.*R"); // R is an anchor, will always give '-R' at end
      private static final String GITHUB_BRANCH_NAME = "master";
--    private static final String DOWNLOAD_PAGE = "https://papermc.io/downloads/paper";
-+    private static final String DOWNLOAD_PAGE = "https://github.com/Era4FunMC/Molia"; //Molia
+     // Kaiiju start
+-    private static final String DOWNLOAD_PAGE = "https://github.com/KaiijuMC/Kaiiju/releases";
++    private static final String DOWNLOAD_PAGE = "https://github.com/Era4FunMC/DirtyMolia"; //Molia
+     private static int distance = -2; public int distance() { return distance; }
+     // Kaiiju end
      private static @Nullable String mcVer;
- 
-     @Override
-@@ -31,8 +31,8 @@ public class PaperVersionFetcher implements VersionFetcher {
+@@ -33,8 +33,8 @@ public class PaperVersionFetcher implements VersionFetcher {
      @Nonnull
      @Override
      public Component getVersionMessage(@Nonnull String serverVersion) {
--        String[] parts = serverVersion.substring("git-Folia-".length()).split("[-\\s]"); // Folia
--        final Component updateMessage = getUpdateStatusMessage("PaperMC/Folia", GITHUB_BRANCH_NAME, parts[0]); // Folia
-+        String[] parts = serverVersion.substring("git-Molia-".length()).split("[-\\s]"); // Folia //Molia
-+        final Component updateMessage = getUpdateStatusMessage("Era4FunMC/Molia", GITHUB_BRANCH_NAME, parts[0]); // Folia //Molia
+-        String[] parts = serverVersion.substring("git-Kaiiju-".length()).split("[-\\s]"); // Folia // Kaiiju
+-        final Component updateMessage = getUpdateStatusMessage("KaiijuMC/Kaiiju", "ver/" + getMinecraftVersion(), parts[0]); // Folia // Kaiiju
++        String[] parts = serverVersion.substring("git-Dirty-".length()).split("[-\\s]"); // Folia // Kaiiju //Molia
++        final Component updateMessage = getUpdateStatusMessage("Era4FunMC/DirtyMolia", "ver/" + getMinecraftVersion(), parts[0]); // Folia // Kaiiju //Molia
          final Component history = getHistory();
  
          return history != null ? TextComponent.ofChildren(updateMessage, Component.newline(), history) : updateMessage;
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 355acd1dd3b2e9f2a086a8d95928cdebbf63d06f..5e23e9e877f02b44e54a4dc2e87255b604591601 100644
+index 5168d16b7e9ed08bdedd0e386f9671a63b6859be..41414b8aefbbb1185180608c2edf2ff002e4a42b 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -1812,7 +1812,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
  
      @DontObfuscate
      public String getServerModName() {
--        return "Folia"; // Folia - Folia > // Paper - Paper > // Spigot - Spigot > // CraftBukkit - cb > vanilla!
-+        return "Molia"; //Molia - Molia > // Folia - Folia > // Paper - Paper > // Spigot - Spigot > // CraftBukkit - cb > vanilla!
+-        return dev.kaiijumc.kaiiju.KaiijuConfig.serverModName; // Kaiiju - Kaiiju > // Folia - Folia > // Paper - Paper > // Spigot - Spigot > // CraftBukkit - cb > vanilla!
++        return "Dirty"; //Molia - DirtyMolia > //Kaiiju - Kaiiju > // Folia - Folia > // Paper - Paper > // Spigot - Spigot > // CraftBukkit - cb > vanilla!
      }
  
      public SystemReport fillSystemReport(SystemReport details) {
 diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
-index 9485d754ec6ce4031d88734e327abda240d9db90..ed3b14dfdecabc42cc26e7ec450912e0da69ac16 100644
+index ba4fd6996e9e159b5fbb4ebe1df471137afdd10f..d15631e732cac8abab702fcbf5b844ad119449de 100644
 --- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
 @@ -265,7 +265,7 @@ import javax.annotation.Nullable; // Paper
  import javax.annotation.Nonnull; // Paper
  
  public final class CraftServer implements Server {
--    private final String serverName = "Folia"; // Folia // Paper
-+    private final String serverName = "Molia"; // Folia // Paper //Molia
+-    private final String serverName = "Kaiiju"; // Kaiiju // Folia // Paper
++    private final String serverName = "DirtyMolia"; // Kaiiju // Folia // Paper //Molia
      private final String serverVersion;
      private final String bukkitVersion = Versioning.getBukkitVersion();
      private final Logger logger = Logger.getLogger("Minecraft");
 diff --git a/src/main/java/org/bukkit/craftbukkit/util/Versioning.java b/src/main/java/org/bukkit/craftbukkit/util/Versioning.java
-index e9b6ca3aa25e140467ae866d572483050ea3fa0e..63d628b709e939d7f93411210ada36f4d3998a06 100644
+index 5df2b0fceebaaa863f4f143c8f29e808b7f0c49b..f6ed9ec83c825c163be790afe6410aefeef2a4b8 100644
 --- a/src/main/java/org/bukkit/craftbukkit/util/Versioning.java
 +++ b/src/main/java/org/bukkit/craftbukkit/util/Versioning.java
 @@ -11,7 +11,7 @@ public final class Versioning {
      public static String getBukkitVersion() {
          String result = "Unknown-Version";
  
--        InputStream stream = Bukkit.class.getClassLoader().getResourceAsStream("META-INF/maven/dev.folia/folia-api/pom.properties"); // Folia
-+        InputStream stream = Bukkit.class.getClassLoader().getResourceAsStream("META-INF/maven/me.earthme.molia/molia-api/pom.properties"); // Folia //Molia
+-        InputStream stream = Bukkit.class.getClassLoader().getResourceAsStream("META-INF/maven/dev.kaiijumc.kaiiju/kaiiju-api/pom.properties"); // Folia // Kaiiju
++        InputStream stream = Bukkit.class.getClassLoader().getResourceAsStream("META-INF/maven/me.earthme.molia/molia-api/kaiiju-api/pom.properties"); // Folia // Kaiiju // Folia //Molia
          Properties properties = new Properties();
  
          if (stream != null) {

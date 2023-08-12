@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: MrHua269 <wangxyper@163.com>
-Date: Fri, 11 Aug 2023 14:45:12 +0800
-Subject: [PATCH] Readd datapack command
+Date: Fri, 11 Aug 2023 22:40:40 +0800
+Subject: [PATCH] Readd reload command and prepare for datapack command
 
 
 diff --git a/src/main/java/ca/spottedleaf/concurrentutil/scheduler/SchedulerThreadPool.java b/src/main/java/ca/spottedleaf/concurrentutil/scheduler/SchedulerThreadPool.java
@@ -271,20 +271,20 @@ index 0000000000000000000000000000000000000000..949bbc9f764579c034a31a60143428ca
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/commands/Commands.java b/src/main/java/net/minecraft/commands/Commands.java
-index 681cd79ce24fe5d952e987d46e2fd8df07a0f8a1..f47da0b45137aa18bc3ca4329cfaf6900edc0d83 100644
+index 44576310cc5b89c287b0ab7ba1a99d76b67f33dd..81ae9b32cb81375ae89c05df02ae798bf1430b36 100644
 --- a/src/main/java/net/minecraft/commands/Commands.java
 +++ b/src/main/java/net/minecraft/commands/Commands.java
 @@ -149,7 +149,7 @@ public class Commands {
          //CloneCommands.register(this.dispatcher, commandRegistryAccess); // Folia - region threading - TODO
          DamageCommand.register(this.dispatcher, commandRegistryAccess);
-         //DataCommands.register(this.dispatcher); // Folia - region threading - TODO
+         DataCommands.register(this.dispatcher); // Folia - region threading - TODO // Kaiiju
 -        //DataPackCommand.register(this.dispatcher); // Folia - region threading - TODO
 +        DataPackCommand.register(this.dispatcher); // Folia - region threading - TODO //Molia - Renable data pack command
          //DebugCommand.register(this.dispatcher); // Folia - region threading - TODO
          DefaultGameModeCommands.register(this.dispatcher);
          DifficultyCommand.register(this.dispatcher);
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 40d892f62c04b7415d5d27454507a8ca6f2de14b..5f1a4fe0121a4924451747f1d8ff3ad630b4d680 100644
+index a8379ad2e0eb8ace95239e8826b414d0b0df1d1c..9a425c0cc7a2f9a4434990fd68f1d8c9f1387134 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -46,6 +46,7 @@ import java.util.concurrent.CompletableFuture;
@@ -295,15 +295,16 @@ index 40d892f62c04b7415d5d27454507a8ca6f2de14b..5f1a4fe0121a4924451747f1d8ff3ad6
  import java.util.function.BooleanSupplier;
  import java.util.function.Consumer;
  import java.util.function.Function;
-@@ -56,6 +57,7 @@ import javax.imageio.ImageIO;
- 
- import me.earthme.molia.MoliaConfig;
- import me.earthme.molia.thread.CraftSchedulerRunner;
+@@ -162,7 +163,7 @@ import net.minecraft.world.level.storage.ServerLevelData;
+ import net.minecraft.world.level.storage.WorldData;
+ import net.minecraft.world.level.storage.loot.LootDataManager;
+ import org.slf4j.Logger;
+-
 +import me.earthme.molia.threadedregioncontroller.RegionTickHolder;
- import net.minecraft.CrashReport;
- import net.minecraft.ReportedException;
- import net.minecraft.SharedConstants;
-@@ -2191,13 +2193,16 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+ // CraftBukkit start
+ import com.mojang.datafixers.util.Pair;
+ import com.mojang.serialization.DynamicOps;
+@@ -2183,13 +2184,16 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
      public CompletableFuture<Void> reloadResources(Collection<String> dataPacks, io.papermc.paper.event.server.ServerResourcesReloadedEvent.Cause cause) {
          // Paper end
          RegistryAccess.Frozen iregistrycustom_dimension = this.registries.getAccessForLoading(RegistryLayer.RELOADABLE);
@@ -322,7 +323,7 @@ index 40d892f62c04b7415d5d27454507a8ca6f2de14b..5f1a4fe0121a4924451747f1d8ff3ad6
              MultiPackResourceManager resourcemanager = new MultiPackResourceManager(PackType.SERVER_DATA, immutablelist);
  
              return ReloadableServerResources.loadResources(resourcemanager, iregistrycustom_dimension, this.worldData.enabledFeatures(), this.isDedicatedServer() ? Commands.CommandSelection.DEDICATED : Commands.CommandSelection.INTEGRATED, this.getFunctionCompilationLevel(), this.executor, this).whenComplete((datapackresources, throwable) -> {
-@@ -2219,9 +2224,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -2211,9 +2215,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
              this.resources.managers.updateRegistryTags(this.registryAccess());
              net.minecraft.world.item.alchemy.PotionBrewing.reload(); // Paper
              // Paper start
@@ -332,7 +333,7 @@ index 40d892f62c04b7415d5d27454507a8ca6f2de14b..5f1a4fe0121a4924451747f1d8ff3ad6
              // this.getPlayerList().saveAll(); // Paper - we don't need to save everything, just advancements
              for (ServerPlayer player : this.getPlayerList().getPlayers()) {
                  player.getAdvancements().save();
-@@ -2232,12 +2234,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -2224,12 +2225,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
              this.structureTemplateManager.onResourceManagerReload(this.resources.resourceManager);
              org.bukkit.craftbukkit.block.data.CraftBlockData.reloadCache(); // Paper - cache block data strings, they can be defined by datapacks so refresh it here
              new io.papermc.paper.event.server.ServerResourcesReloadedEvent(cause).callEvent(); // Paper - fire after everything has been reloaded
@@ -371,7 +372,7 @@ index 83701fbfaa56a232593ee8f11a3afb8941238bfa..5815afa3a85e23b25aa04acb5ac61bc3
          } else {
              runnable.run();
 diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
-index 206f981f7eb7f8780e3e0b15176b403d2ec4456a..48c3bc3dccbf752782c8ad93d53921da0ef74643 100644
+index c057c2942b3b9c33c03051e30f3196fcac99d331..8a3f9edf50bbd26f0afd619d5755263706349b06 100644
 --- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
 +++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
 @@ -107,8 +107,9 @@ public class CraftScheduler implements BukkitScheduler {

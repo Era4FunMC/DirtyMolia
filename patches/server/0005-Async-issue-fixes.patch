@@ -1,11 +1,11 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: MrHua269 <wangxyper@163.com>
-Date: Fri, 11 Aug 2023 17:10:26 +0800
-Subject: [PATCH] Run on region scheduler if failed get region data async
+Date: Fri, 11 Aug 2023 22:41:26 +0800
+Subject: [PATCH] Async issue fixes
 
 
 diff --git a/src/main/java/io/papermc/paper/threadedregions/TickRegions.java b/src/main/java/io/papermc/paper/threadedregions/TickRegions.java
-index 59a84cd7172e8dce7b2b5d7c5c93bc90ffd74197..bfb3e8b694b27ef25b63a2930db3d334bc58fd97 100644
+index a64dc39eb9ea362c19a2085efbeb0e363c7e1ced..bfb3e8b694b27ef25b63a2930db3d334bc58fd97 100644
 --- a/src/main/java/io/papermc/paper/threadedregions/TickRegions.java
 +++ b/src/main/java/io/papermc/paper/threadedregions/TickRegions.java
 @@ -16,6 +16,7 @@ import net.minecraft.server.level.ServerLevel;
@@ -25,11 +25,23 @@ index 59a84cd7172e8dce7b2b5d7c5c93bc90ffd74197..bfb3e8b694b27ef25b63a2930db3d334
  public final class TickRegions implements ThreadedRegionizer.RegionCallbacks<TickRegions.TickRegionData, TickRegions.TickRegionSectionData> {
  
      private static final Logger LOGGER = LogUtils.getLogger();
-@@ -142,7 +145,14 @@ public final class TickRegions implements ThreadedRegionizer.RegionCallbacks<Tic
-                 TickRegionScheduler.getCurrentRegion().getData().getRegionStats().updateFrom(TickRegionScheduler.getCurrentRegionizedWorldData());
-                 return;
-             }
+@@ -130,15 +133,42 @@ public final class TickRegions implements ThreadedRegionizer.RegionCallbacks<Tic
+         }
+ 
+         static void updateCurrentRegion(Level level, BlockPos pos) {
++            if (TickRegionScheduler.getCurrentRegionizedWorldData() != null && TickRegionScheduler.getCurrentRegion().getData() != null){
++                TickRegionScheduler.getCurrentRegion().getData().getRegionStats().updateFrom(TickRegionScheduler.getCurrentRegionizedWorldData());
++                return;
++            }
+             ((ServerLevel) level).regioniser.getRegionAtUnsynchronised(pos.getX() >> 4,pos.getY() >> 4).getData().getRegionStats().updateFrom(Level.WORLD_DATA_POOL.getDataAnyThread(level,pos));
+         }
+ 
+         static void updateCurrentRegion(LevelChunk chunk) {
 -            ((ServerLevel) chunk.level).regioniser.getRegionAtUnsynchronised(chunk.getPos().x,chunk.getPos().z).getData().getRegionStats().updateFrom(Level.WORLD_DATA_POOL.getDataAnyThread(chunk.level,new BlockPos(chunk.getPos().getMiddleBlockX(),0,chunk.getPos().z)));
++            if (TickRegionScheduler.getCurrentRegionizedWorldData() != null && TickRegionScheduler.getCurrentRegion().getData() != null){
++                TickRegionScheduler.getCurrentRegion().getData().getRegionStats().updateFrom(TickRegionScheduler.getCurrentRegionizedWorldData());
++                return;
++            }
 +            final ThreadedRegionizer.ThreadedRegion<TickRegions.TickRegionData, TickRegions.TickRegionSectionData> got = ((ServerLevel) chunk.level).regioniser.getRegionAtUnsynchronised(chunk.getPos().x,chunk.getPos().z);
 +            if (got != null) {
 +                got.getData().getRegionStats().updateFrom(Level.WORLD_DATA_POOL.getDataAnyThread(chunk.level,new BlockPos(chunk.getPos().getMiddleBlockX(),0,chunk.getPos().z)));
@@ -41,11 +53,11 @@ index 59a84cd7172e8dce7b2b5d7c5c93bc90ffd74197..bfb3e8b694b27ef25b63a2930db3d334
          }
  
          static void updateCurrentRegion(Entity entity) {
-@@ -150,7 +160,15 @@ public final class TickRegions implements ThreadedRegionizer.RegionCallbacks<Tic
-                 TickRegionScheduler.getCurrentRegion().getData().getRegionStats().updateFrom(TickRegionScheduler.getCurrentRegionizedWorldData());
-                 return;
-             }
--            ((ServerLevel) entity.level()).regioniser.getRegionAtUnsynchronised(entity.sectionX,entity.sectionZ).getData().getRegionStats().updateFrom(Level.WORLD_DATA_POOL.getDataAnyThread(entity));
+-            ((ServerLevel) entity.level()).regioniser.getRegionAtUnsynchronised(entity.blockPosition.getX() >> 4,entity.blockPosition.getY() >> 4).getData().getRegionStats().updateFrom(Level.WORLD_DATA_POOL.getDataAnyThread(entity));
++            if (TickRegionScheduler.getCurrentRegionizedWorldData() != null && TickRegionScheduler.getCurrentRegion().getData() != null){
++                TickRegionScheduler.getCurrentRegion().getData().getRegionStats().updateFrom(TickRegionScheduler.getCurrentRegionizedWorldData());
++                return;
++            }
 +
 +            final ThreadedRegionizer.ThreadedRegion<TickRegions.TickRegionData, TickRegions.TickRegionSectionData> got = ((ServerLevel) entity.level()).regioniser.getRegionAtUnsynchronised(entity.sectionX,entity.sectionZ);
 +            if (got != null) {

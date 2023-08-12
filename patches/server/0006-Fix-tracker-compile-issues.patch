@@ -1,0 +1,54 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: MrHua269 <wangxyper@163.com>
+Date: Sat, 12 Aug 2023 08:10:44 +0800
+Subject: [PATCH] Fix tracker & compile issues
+
+
+diff --git a/src/main/java/me/earthme/molia/thread/CraftSchedulerRunner.java b/src/main/java/me/earthme/molia/thread/CraftSchedulerRunner.java
+index ad28892c7f8cd1b0af1ce1774ce10e0cfdc33bfb..6bc03b13b0a62e7e7b06fbd2ea181c309b7a4365 100644
+--- a/src/main/java/me/earthme/molia/thread/CraftSchedulerRunner.java
++++ b/src/main/java/me/earthme/molia/thread/CraftSchedulerRunner.java
+@@ -27,7 +27,7 @@ public class CraftSchedulerRunner extends TickThread implements Executor {
+     private final Deque<Runnable> localTasks = new ConcurrentLinkedDeque<>();
+ 
+     private CraftSchedulerRunner(){
+-        super();
++        super("Craft Scheduler Runner Thread");
+     }
+ 
+     static {
+diff --git a/src/main/java/net/minecraft/server/level/ChunkMap.java b/src/main/java/net/minecraft/server/level/ChunkMap.java
+index d8392e286587057cee60b212e3ccacf9e9b35bb3..690beafe6d39be92986dd523ae0a822a51a76887 100644
+--- a/src/main/java/net/minecraft/server/level/ChunkMap.java
++++ b/src/main/java/net/minecraft/server/level/ChunkMap.java
+@@ -54,6 +54,8 @@ import java.util.function.IntSupplier;
+ import java.util.function.Supplier;
+ import java.util.stream.Collectors;
+ import javax.annotation.Nullable;
++
++import it.unimi.dsi.fastutil.objects.ReferenceSets;
+ import net.minecraft.CrashReport;
+ import net.minecraft.CrashReportCategory;
+ import net.minecraft.ReportedException;
+@@ -1258,7 +1260,7 @@ public class ChunkMap extends ChunkStorage implements ChunkHolder.PlayerProvider
+         final Entity entity;
+         private final int range;
+         SectionPos lastSectionPos;
+-        public final Set<ServerPlayerConnection> seenBy = new ReferenceOpenHashSet<>(); // Paper - optimise map impl
++        public final Set<ServerPlayerConnection> seenBy = ReferenceSets.synchronize(new ReferenceOpenHashSet<>()); // Paper - optimise map impl //DirtyMolia - Tracker issue fix
+ 
+         public TrackedEntity(Entity entity, int i, int j, boolean flag) {
+             this.serverEntity = new ServerEntity(ChunkMap.this.level, entity, j, flag, this::broadcast, this.seenBy); // CraftBukkit
+diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
+index 8a3f9edf50bbd26f0afd619d5755263706349b06..a3900022ab2857b3cd3c39ef7285188bcb4197de 100644
+--- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
++++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
+@@ -45,7 +45,7 @@ import org.bukkit.scheduler.BukkitWorker;
+  */
+ public class CraftScheduler implements BukkitScheduler {
+ 
+-    static Plugin MINECRAFT = new MinecraftInternalPlugin();
++    public static Plugin MINECRAFT = new MinecraftInternalPlugin();
+     /**
+      * The start ID for the counter.
+      */
