@@ -68,7 +68,7 @@ index 95bc514df2022dde265b84490d3d0db002685024..0e892a6f4bc693b7923e1d2d0938969d
      public Component getVersionMessage(@Nonnull String serverVersion) {
 -        String[] parts = serverVersion.substring("git-Kaiiju-".length()).split("[-\\s]"); // Folia // Kaiiju
 -        final Component updateMessage = getUpdateStatusMessage("KaiijuMC/Kaiiju", "ver/" + getMinecraftVersion(), parts[0]); // Folia // Kaiiju
-+        String[] parts = serverVersion.substring("git-Dirty-".length()).split("[-\\s]"); // Folia // Kaiiju //Molia
++        String[] parts = serverVersion.substring("git-DirtyMolia-".length()).split("[-\\s]"); // Folia // Kaiiju //Molia
 +        final Component updateMessage = getUpdateStatusMessage("Era4FunMC/DirtyMolia", "ver/" + getMinecraftVersion(), parts[0]); // Folia // Kaiiju //Molia
          final Component history = getHistory();
  
@@ -82,7 +82,7 @@ index 5168d16b7e9ed08bdedd0e386f9671a63b6859be..41414b8aefbbb1185180608c2edf2ff0
      @DontObfuscate
      public String getServerModName() {
 -        return dev.kaiijumc.kaiiju.KaiijuConfig.serverModName; // Kaiiju - Kaiiju > // Folia - Folia > // Paper - Paper > // Spigot - Spigot > // CraftBukkit - cb > vanilla!
-+        return "Dirty"; //Molia - DirtyMolia > //Kaiiju - Kaiiju > // Folia - Folia > // Paper - Paper > // Spigot - Spigot > // CraftBukkit - cb > vanilla!
++        return "DirtyMolia"; //Molia - DirtyMolia > //Kaiiju - Kaiiju > // Folia - Folia > // Paper - Paper > // Spigot - Spigot > // CraftBukkit - cb > vanilla!
      }
  
      public SystemReport fillSystemReport(SystemReport details) {
