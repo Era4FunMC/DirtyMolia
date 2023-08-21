@@ -1,3 +1,7 @@
+## WARNING
+THIS FORK HAS BROKEN MANY THREAD CHECKS AND REOPEN SOME DANGEROUS APIS,YOU SHOULD KEEP AWAY FROM THIS FORK IF YOU WANT A STABLE ENVIRONMENT
+THINK TWICE BEFORE USING THIS FORK!!!!!
+
 ## Molia
 
 <h5>Molia is a drop-in replacement for <a href="https://github.com/PaperMC/Folia">Folia</a> servers designed for bukkit plugins and customize, and performance built on top of <a href="https://github.com/PaperMC/Folia">Folia</a>.</h5>
