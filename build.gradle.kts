@@ -76,13 +76,13 @@ paperweight {
     remapRepo.set("https://maven.fabricmc.net/")
     decompileRepo.set("https://maven.quiltmc.org/")
 
-    useStandardUpstream("kaiiju") {
-        url.set(github("KaiijuMC", "Kaiiju"))
-        ref.set(providers.gradleProperty("kaiijuCommit"))
+    useStandardUpstream("molia") {
+        url.set(github("Era4FunMC", "Molia"))
+        ref.set(providers.gradleProperty("moliaCommit"))
 
         withStandardPatcher {
-            apiSourceDirPath.set("kaiiju-api")
-            serverSourceDirPath.set("kaiiju-server")
+            apiSourceDirPath.set("Molia-API")
+            serverSourceDirPath.set("Molia-Server")
 
 
             apiPatchDir.set(layout.projectDirectory.dir("patches/api"))
