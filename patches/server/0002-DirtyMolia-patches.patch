@@ -1,9 +1,69 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: MrHua269 <wangxyper@163.com>
-Date: Fri, 11 Aug 2023 22:38:44 +0800
+Date: Mon, 21 Aug 2023 21:58:24 +0800
 Subject: [PATCH] DirtyMolia patches!
 
 
+diff --git a/src/main/java/ca/spottedleaf/concurrentutil/scheduler/SchedulerThreadPool.java b/src/main/java/ca/spottedleaf/concurrentutil/scheduler/SchedulerThreadPool.java
+index 0ce825d7af2a1dbeac5c22640534ee1901edce20..3cc8eb80e03e5c076e69908a7cbf085aae205ac1 100644
+--- a/src/main/java/ca/spottedleaf/concurrentutil/scheduler/SchedulerThreadPool.java
++++ b/src/main/java/ca/spottedleaf/concurrentutil/scheduler/SchedulerThreadPool.java
+@@ -3,8 +3,10 @@ package ca.spottedleaf.concurrentutil.scheduler;
+ import ca.spottedleaf.concurrentutil.util.ConcurrentUtil;
+ import ca.spottedleaf.concurrentutil.util.TimeUtil;
+ import com.mojang.logging.LogUtils;
++import io.papermc.paper.threadedregions.TickRegionScheduler;
+ import io.papermc.paper.util.TraceUtil;
+ import io.papermc.paper.util.set.LinkedSortedSet;
++import me.earthme.molia.threadedregioncontroller.RegionTickHolder;
+ import org.slf4j.Logger;
+ import java.lang.invoke.VarHandle;
+ import java.util.BitSet;
+@@ -490,11 +492,22 @@ public class SchedulerThreadPool {
+                     return;
+                 }
+ 
++                //Molia start - For data pack command
++                if (!RegionTickHolder.INSTANCE.shouldRunNextTick(((TickRegionScheduler.TickThreadRunner) this.thread))){
++                    RegionTickHolder.INSTANCE.onRegionRunnerIdle();//Molia - For data pack command
++                    while (!RegionTickHolder.INSTANCE.shouldRunNextTick((TickRegionScheduler.TickThreadRunner) this.thread)){
++                        LockSupport.parkNanos("IDLE",1_000_000);
++                    }
++                    RegionTickHolder.INSTANCE.onRegionBreakOutIdle(); //Molia - For data pack command
++                }
++                //Molia end
++
+                 switch (startStateType) {
+                     case STATE_IDLE: {
+                         while (this.state.state == STATE_IDLE) {
+                             LockSupport.park();
+                             if (this.scheduler.halted) {
++                                RegionTickHolder.INSTANCE.onRegionRunnerDestroyed(((TickRegionScheduler.TickThreadRunner) this.thread)); //Molia - For data pack command
+                                 return;
+                             }
+                         }
+@@ -513,6 +526,7 @@ public class SchedulerThreadPool {
+                             }
+                             LockSupport.parkNanos(startState, diff);
+                             if (this.scheduler.halted) {
++                                RegionTickHolder.INSTANCE.onRegionRunnerDestroyed(((TickRegionScheduler.TickThreadRunner) this.thread)); //Molia - For data pack command
+                                 return;
+                             }
+                         }
+@@ -521,11 +535,12 @@ public class SchedulerThreadPool {
+                             continue main_state_loop;
+                         }
+ 
++                        RegionTickHolder.INSTANCE.onRegionRunnerStartTicking(); //Molia - For data pack command
+                         // TODO exception handling
+                         final boolean reschedule = startStateTask.runTick();
+ 
+                         this.returnTask(startStateTask, reschedule);
+-
++                        RegionTickHolder.INSTANCE.onRegionRunnerFinishedCurrentTick(); //Molia - For data pack command
+                         continue main_state_loop;
+                     }
+ 
 diff --git a/src/main/java/com/destroystokyo/paper/util/maplist/ReferenceList.java b/src/main/java/com/destroystokyo/paper/util/maplist/ReferenceList.java
 index 190c5f0b02a3d99054704ae1afbffb3498ddffe1..8106114c49e4589a70bf00430a83a132a049e2db 100644
 --- a/src/main/java/com/destroystokyo/paper/util/maplist/ReferenceList.java
@@ -145,6 +205,28 @@ index ad13d60eeb94a75c97b3d0696c39d834d6082bfa..d3bfffac98cc24b801b533eca795e54f
          }
          // Folia end - block plugins not marked as supported
          // Copied from SimplePluginManager#loadPlugins
+diff --git a/src/main/java/io/papermc/paper/threadedregions/RegionizedServer.java b/src/main/java/io/papermc/paper/threadedregions/RegionizedServer.java
+index 00d79c8095ec689b4a30648665c8fc0843783fd9..1dd3afb9c204a9f28610b43af398103e0c989113 100644
+--- a/src/main/java/io/papermc/paper/threadedregions/RegionizedServer.java
++++ b/src/main/java/io/papermc/paper/threadedregions/RegionizedServer.java
+@@ -98,12 +98,15 @@ public final class RegionizedServer {
+     }
+ 
+     public static boolean isGlobalTickThread() {
+-        return INSTANCE.tickHandle == TickRegionScheduler.getCurrentTickingTask();
++        //DirtyMolia start - Drop global region check
++        //return INSTANCE.tickHandle == TickRegionScheduler.getCurrentTickingTask();
++        return true;
++        //Molia end
+     }
+ 
+     public static void ensureGlobalTickThread(final String reason) {
+         if (!isGlobalTickThread()) {
+-            throw new IllegalStateException(reason);
++           throw new IllegalStateException(reason);
+         }
+     }
+ 
 diff --git a/src/main/java/io/papermc/paper/threadedregions/RegionizedWorldData.java b/src/main/java/io/papermc/paper/threadedregions/RegionizedWorldData.java
 index 223bf699d76e53b131b47256df288db60141fd9e..c6036227c3999b73fc2816825dcd0f29d36c5296 100644
 --- a/src/main/java/io/papermc/paper/threadedregions/RegionizedWorldData.java
@@ -331,10 +413,14 @@ index 223bf699d76e53b131b47256df288db60141fd9e..c6036227c3999b73fc2816825dcd0f29
  
      public IteratorSafeOrderedReferenceSet<LevelChunk> getChunks() {
 diff --git a/src/main/java/io/papermc/paper/threadedregions/TickRegionScheduler.java b/src/main/java/io/papermc/paper/threadedregions/TickRegionScheduler.java
-index ee9f5e1f3387998cddbeb1dc6dc6e2b1ea7cd670..f13c32b608cad9793619eb4dbac4f99daf690bba 100644
+index ee9f5e1f3387998cddbeb1dc6dc6e2b1ea7cd670..d1c9dd1a9fad45230e0db7781f0549d1eff5d9a3 100644
 --- a/src/main/java/io/papermc/paper/threadedregions/TickRegionScheduler.java
 +++ b/src/main/java/io/papermc/paper/threadedregions/TickRegionScheduler.java
-@@ -7,6 +7,7 @@ import io.papermc.paper.util.TickThread;
+@@ -4,9 +4,11 @@ import ca.spottedleaf.concurrentutil.scheduler.SchedulerThreadPool;
+ import ca.spottedleaf.concurrentutil.util.TimeUtil;
+ import com.mojang.logging.LogUtils;
+ import io.papermc.paper.util.TickThread;
++import me.earthme.molia.threadedregioncontroller.RegionTickHolder;
  import net.minecraft.server.MinecraftServer;
  import net.minecraft.server.level.ServerLevel;
  import net.minecraft.world.level.ChunkPos;
@@ -342,7 +428,7 @@ index ee9f5e1f3387998cddbeb1dc6dc6e2b1ea7cd670..f13c32b608cad9793619eb4dbac4f99d
  import org.slf4j.Logger;
  import java.lang.management.ManagementFactory;
  import java.lang.management.ThreadMXBean;
-@@ -66,8 +67,10 @@ public final class TickRegionScheduler {
+@@ -66,8 +68,10 @@ public final class TickRegionScheduler {
          tickThreadRunner.currentTickingRegion = region;
          if (region != null) {
              tickThreadRunner.currentTickingWorldRegionizedData = region.regioniser.world.worldRegionData.get();
@@ -353,7 +439,7 @@ index ee9f5e1f3387998cddbeb1dc6dc6e2b1ea7cd670..f13c32b608cad9793619eb4dbac4f99d
          }
      }
  
-@@ -194,9 +197,9 @@ public final class TickRegionScheduler {
+@@ -194,14 +198,15 @@ public final class TickRegionScheduler {
  
      // By using our own thread object, we can use a field for the current region rather than a ThreadLocal.
      // This is much faster than a thread local, since the thread local has to use a map lookup.
@@ -365,11 +451,17 @@ index ee9f5e1f3387998cddbeb1dc6dc6e2b1ea7cd670..f13c32b608cad9793619eb4dbac4f99d
          private RegionizedWorldData currentTickingWorldRegionizedData;
          private SchedulerThreadPool.SchedulableTick currentTickingTask;
  
+         public TickThreadRunner(final Runnable run, final String name) {
+             super(run, name);
++            RegionTickHolder.INSTANCE.onRegionRunnerCreated(this); //Molia - For datapack command
+         }
+     }
+ 
 diff --git a/src/main/java/io/papermc/paper/threadedregions/TickRegions.java b/src/main/java/io/papermc/paper/threadedregions/TickRegions.java
-index 6c76c70574642aa4f3a8fce74e4608781ce132ec..a64dc39eb9ea362c19a2085efbeb0e363c7e1ced 100644
+index 6c76c70574642aa4f3a8fce74e4608781ce132ec..bfb3e8b694b27ef25b63a2930db3d334bc58fd97 100644
 --- a/src/main/java/io/papermc/paper/threadedregions/TickRegions.java
 +++ b/src/main/java/io/papermc/paper/threadedregions/TickRegions.java
-@@ -10,8 +10,12 @@ import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
+@@ -10,8 +10,13 @@ import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
  import it.unimi.dsi.fastutil.objects.Reference2ReferenceMap;
  import it.unimi.dsi.fastutil.objects.Reference2ReferenceOpenHashMap;
  import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
@@ -379,28 +471,251 @@ index 6c76c70574642aa4f3a8fce74e4608781ce132ec..a64dc39eb9ea362c19a2085efbeb0e36
 +import net.minecraft.world.entity.Entity;
 +import net.minecraft.world.level.Level;
 +import net.minecraft.world.level.chunk.LevelChunk;
++import org.bukkit.Bukkit;
  import org.slf4j.Logger;
  import java.util.Iterator;
  import java.util.concurrent.TimeUnit;
-@@ -124,6 +128,18 @@ public final class TickRegions implements ThreadedRegionizer.RegionCallbacks<Tic
+@@ -19,6 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger;
+ import java.util.concurrent.atomic.AtomicLong;
+ import java.util.function.BooleanSupplier;
+ 
++import static org.bukkit.craftbukkit.scheduler.CraftScheduler.MINECRAFT;
++
+ public final class TickRegions implements ThreadedRegionizer.RegionCallbacks<TickRegions.TickRegionData, TickRegions.TickRegionSectionData> {
+ 
+     private static final Logger LOGGER = LogUtils.getLogger();
+@@ -124,6 +131,45 @@ public final class TickRegions implements ThreadedRegionizer.RegionCallbacks<Tic
          static void updateCurrentRegion() {
              TickRegionScheduler.getCurrentRegion().getData().getRegionStats().updateFrom(TickRegionScheduler.getCurrentRegionizedWorldData());
          }
 +
 +        static void updateCurrentRegion(Level level, BlockPos pos) {
++            if (TickRegionScheduler.getCurrentRegionizedWorldData() != null && TickRegionScheduler.getCurrentRegion().getData() != null){
++                TickRegionScheduler.getCurrentRegion().getData().getRegionStats().updateFrom(TickRegionScheduler.getCurrentRegionizedWorldData());
++                return;
++            }
 +            ((ServerLevel) level).regioniser.getRegionAtUnsynchronised(pos.getX() >> 4,pos.getY() >> 4).getData().getRegionStats().updateFrom(Level.WORLD_DATA_POOL.getDataAnyThread(level,pos));
 +        }
 +
 +        static void updateCurrentRegion(LevelChunk chunk) {
-+            ((ServerLevel) chunk.level).regioniser.getRegionAtUnsynchronised(chunk.getPos().x,chunk.getPos().z).getData().getRegionStats().updateFrom(Level.WORLD_DATA_POOL.getDataAnyThread(chunk.level,new BlockPos(chunk.getPos().getMiddleBlockX(),0,chunk.getPos().z)));
++            if (TickRegionScheduler.getCurrentRegionizedWorldData() != null && TickRegionScheduler.getCurrentRegion().getData() != null){
++                TickRegionScheduler.getCurrentRegion().getData().getRegionStats().updateFrom(TickRegionScheduler.getCurrentRegionizedWorldData());
++                return;
++            }
++            final ThreadedRegionizer.ThreadedRegion<TickRegions.TickRegionData, TickRegions.TickRegionSectionData> got = ((ServerLevel) chunk.level).regioniser.getRegionAtUnsynchronised(chunk.getPos().x,chunk.getPos().z);
++            if (got != null) {
++                got.getData().getRegionStats().updateFrom(Level.WORLD_DATA_POOL.getDataAnyThread(chunk.level,new BlockPos(chunk.getPos().getMiddleBlockX(),0,chunk.getPos().z)));
++            }else{
++                Bukkit.getRegionScheduler().execute(MINECRAFT,chunk.level.getWorld(),chunk.getPos().x,chunk.getPos().z,()->{
++                    TickRegionScheduler.getCurrentRegion().getData().getRegionStats().updateFrom(TickRegionScheduler.getCurrentRegionizedWorldData());
++                });
++            }
 +        }
 +
 +        static void updateCurrentRegion(Entity entity) {
-+            ((ServerLevel) entity.level()).regioniser.getRegionAtUnsynchronised(entity.blockPosition.getX() >> 4,entity.blockPosition.getY() >> 4).getData().getRegionStats().updateFrom(Level.WORLD_DATA_POOL.getDataAnyThread(entity));
++            if (TickRegionScheduler.getCurrentRegionizedWorldData() != null && TickRegionScheduler.getCurrentRegion().getData() != null){
++                TickRegionScheduler.getCurrentRegion().getData().getRegionStats().updateFrom(TickRegionScheduler.getCurrentRegionizedWorldData());
++                return;
++            }
++
++            final ThreadedRegionizer.ThreadedRegion<TickRegions.TickRegionData, TickRegions.TickRegionSectionData> got = ((ServerLevel) entity.level()).regioniser.getRegionAtUnsynchronised(entity.sectionX,entity.sectionZ);
++            if (got != null) {
++                got.getData().getRegionStats().updateFrom(Level.WORLD_DATA_POOL.getDataAnyThread(entity));
++            }else{
++                Bukkit.getRegionScheduler().execute(MINECRAFT,entity.getBukkitEntity().getLocation(),()->{
++                    TickRegionScheduler.getCurrentRegion().getData().getRegionStats().updateFrom(TickRegionScheduler.getCurrentRegionizedWorldData());
++                });
++            }
 +        }
      }
  
      public static final class TickRegionData implements ThreadedRegionizer.ThreadedRegionData<TickRegionData, TickRegionSectionData> {
+diff --git a/src/main/java/io/papermc/paper/util/TickThread.java b/src/main/java/io/papermc/paper/util/TickThread.java
+index 492e6a512343001d3d772d2d8b427d2d84e89da5..f7adf2dfd92c01168ea0846b4586ec38484aa5f6 100644
+--- a/src/main/java/io/papermc/paper/util/TickThread.java
++++ b/src/main/java/io/papermc/paper/util/TickThread.java
+@@ -6,6 +6,7 @@ import io.papermc.paper.threadedregions.RegionizedWorldData;
+ import io.papermc.paper.threadedregions.ThreadedRegionizer;
+ import io.papermc.paper.threadedregions.TickRegionScheduler;
+ import io.papermc.paper.threadedregions.TickRegions;
++import me.earthme.molia.thread.CraftSchedulerRunner;
+ import net.minecraft.core.BlockPos;
+ import net.minecraft.server.MinecraftServer;
+ import net.minecraft.server.level.ServerLevel;
+@@ -18,6 +19,8 @@ import net.minecraft.world.level.Level;
+ import net.minecraft.world.phys.AABB;
+ import net.minecraft.world.phys.Vec3;
+ import org.bukkit.Bukkit;
++import org.bukkit.craftbukkit.scheduler.CraftScheduler;
++
+ import java.util.concurrent.atomic.AtomicInteger;
+ 
+ public class TickThread extends Thread {
+@@ -48,56 +51,56 @@ public class TickThread extends Thread {
+     public static void ensureTickThread(final String reason) {
+         if (dev.kaiijumc.kaiiju.KaiijuConfig.disableEnsureTickThreadChecks) return; // Kaiiju
+         if (!isTickThread()) {
+-            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
+-            throw new IllegalStateException(reason);
++            //MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
++            //throw new IllegalStateException(reason);
+         }
+     }
+ 
+     public static void ensureTickThread(final ServerLevel world, final BlockPos pos, final String reason) {
+         if (dev.kaiijumc.kaiiju.KaiijuConfig.disableEnsureTickThreadChecks) return; // Kaiiju
+         if (!isTickThreadFor(world, pos)) {
+-            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
+-            throw new IllegalStateException(reason);
++            //MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
++            //throw new IllegalStateException(reason);
+         }
+     }
+ 
+     public static void ensureTickThread(final ServerLevel world, final ChunkPos pos, final String reason) {
+         if (dev.kaiijumc.kaiiju.KaiijuConfig.disableEnsureTickThreadChecks) return; // Kaiiju
+         if (!isTickThreadFor(world, pos)) {
+-            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
+-            throw new IllegalStateException(reason);
++            //MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
++            //throw new IllegalStateException(reason);
+         }
+     }
+ 
+     public static void ensureTickThread(final ServerLevel world, final int chunkX, final int chunkZ, final String reason) {
+         if (dev.kaiijumc.kaiiju.KaiijuConfig.disableEnsureTickThreadChecks) return; // Kaiiju
+         if (!isTickThreadFor(world, chunkX, chunkZ)) {
+-            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
+-            throw new IllegalStateException(reason);
++            //MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
++            //throw new IllegalStateException(reason);
+         }
+     }
+ 
+     public static void ensureTickThread(final Entity entity, final String reason) {
+         if (dev.kaiijumc.kaiiju.KaiijuConfig.disableEnsureTickThreadChecks) return; // Kaiiju
+         if (!isTickThreadFor(entity)) {
+-            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
+-            throw new IllegalStateException(reason);
++            //MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
++            //throw new IllegalStateException(reason);
+         }
+     }
+ 
+     public static void ensureTickThread(final ServerLevel world, final AABB aabb, final String reason) {
+         if (dev.kaiijumc.kaiiju.KaiijuConfig.disableEnsureTickThreadChecks) return; // Kaiiju
+         if (!isTickThreadFor(world, aabb)) {
+-            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
+-            throw new IllegalStateException(reason);
++            //MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
++            //throw new IllegalStateException(reason);
+         }
+     }
+ 
+     public static void ensureTickThread(final ServerLevel world, final double blockX, final double blockZ, final String reason) {
+         if (dev.kaiijumc.kaiiju.KaiijuConfig.disableEnsureTickThreadChecks) return; // Kaiiju
+         if (!isTickThreadFor(world, blockX, blockZ)) {
+-            MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
+-            throw new IllegalStateException(reason);
++            //MinecraftServer.LOGGER.error("Thread " + Thread.currentThread().getName() + " failed main thread check: " + reason, new Throwable());
++            //throw new IllegalStateException(reason);
+         }
+     }
+ 
+@@ -131,18 +134,34 @@ public class TickThread extends Thread {
+     }
+ 
+     public static boolean isTickThreadFor(final ServerLevel world, final BlockPos pos) {
++        if (CraftSchedulerRunner.isRunnerThread()){
++            return true;
++        }
++
+         return isTickThreadFor(world, pos.getX() >> 4, pos.getZ() >> 4);
+     }
+ 
+     public static boolean isTickThreadFor(final ServerLevel world, final ChunkPos pos) {
++        if (CraftSchedulerRunner.isRunnerThread()){
++            return true;
++        }
++
+         return isTickThreadFor(world, pos.x, pos.z);
+     }
+ 
+     public static boolean isTickThreadFor(final ServerLevel world, final Vec3 pos) {
++        if (CraftSchedulerRunner.isRunnerThread()){
++            return true;
++        }
++
+         return isTickThreadFor(world, Mth.floor(pos.x) >> 4, Mth.floor(pos.z) >> 4);
+     }
+ 
+     public static boolean isTickThreadFor(final ServerLevel world, final int chunkX, final int chunkZ) {
++        if (CraftSchedulerRunner.isRunnerThread()){
++            return true;
++        }
++
+         final ThreadedRegionizer.ThreadedRegion<TickRegions.TickRegionData, TickRegions.TickRegionSectionData> region =
+             TickRegionScheduler.getCurrentRegion();
+         if (region == null) {
+@@ -152,6 +171,10 @@ public class TickThread extends Thread {
+     }
+ 
+     public static boolean isTickThreadFor(final ServerLevel world, final AABB aabb) {
++        if (CraftSchedulerRunner.isRunnerThread()){
++            return true;
++        }
++
+         return isTickThreadFor(
+             world,
+             CoordinateUtils.getChunkCoordinate(aabb.minX), CoordinateUtils.getChunkCoordinate(aabb.minZ),
+@@ -160,10 +183,17 @@ public class TickThread extends Thread {
+     }
+ 
+     public static boolean isTickThreadFor(final ServerLevel world, final double blockX, final double blockZ) {
++        if (CraftSchedulerRunner.isRunnerThread()){
++            return true;
++        }
+         return isTickThreadFor(world, CoordinateUtils.getChunkCoordinate(blockX), CoordinateUtils.getChunkCoordinate(blockZ));
+     }
+ 
+     public static boolean isTickThreadFor(final ServerLevel world, final Vec3 position, final Vec3 deltaMovement, final int buffer) {
++        if (CraftSchedulerRunner.isRunnerThread()){
++            return true;
++        }
++
+         final int fromChunkX = CoordinateUtils.getChunkX(position);
+         final int fromChunkZ = CoordinateUtils.getChunkZ(position);
+ 
+@@ -181,6 +211,10 @@ public class TickThread extends Thread {
+     }
+ 
+     public static boolean isTickThreadFor(final ServerLevel world, final int fromChunkX, final int fromChunkZ, final int toChunkX, final int toChunkZ) {
++        if (CraftSchedulerRunner.isRunnerThread()){
++            return true;
++        }
++
+         final ThreadedRegionizer.ThreadedRegion<TickRegions.TickRegionData, TickRegions.TickRegionSectionData> region =
+             TickRegionScheduler.getCurrentRegion();
+         if (region == null) {
+@@ -208,10 +242,18 @@ public class TickThread extends Thread {
+     }
+ 
+     public static boolean isTickThreadFor(final ServerLevel world, final int chunkX, final int chunkZ, final int radius) {
++        if (CraftSchedulerRunner.isRunnerThread()){
++            return true;
++        }
++        
+         return isTickThreadFor(world, chunkX - radius, chunkZ - radius, chunkX + radius, chunkZ + radius);
+     }
+ 
+     public static boolean isTickThreadFor(final Entity entity) {
++        if (CraftSchedulerRunner.isRunnerThread()){
++            return true;
++        }
++
+         if (entity == null) {
+             return true;
+         }
 diff --git a/src/main/java/me/earthme/molia/SchedulerUtil.java b/src/main/java/me/earthme/molia/SchedulerUtil.java
 new file mode 100644
 index 0000000000000000000000000000000000000000..c6e7b49cc706374eb97fae5138c6ccc96ca35024
@@ -527,17 +842,22 @@ index 0000000000000000000000000000000000000000..b47732e2cf5b17330b3eb509e3784eca
 +}
 diff --git a/src/main/java/me/earthme/molia/thread/CraftSchedulerRunner.java b/src/main/java/me/earthme/molia/thread/CraftSchedulerRunner.java
 new file mode 100644
-index 0000000000000000000000000000000000000000..4f1ff25fb774e20c7e9c33368539072ebae6bc2e
+index 0000000000000000000000000000000000000000..d9259bdbcf8f458e3612168f6f613f5d8ba92bb9
 --- /dev/null
 +++ b/src/main/java/me/earthme/molia/thread/CraftSchedulerRunner.java
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,95 @@
 +package me.earthme.molia.thread;
 +
 +import io.papermc.paper.util.TickThread;
++import me.earthme.molia.threadedregioncontroller.RegionTickHolder;
 +import net.minecraft.server.MinecraftServer;
 +import org.bukkit.Bukkit;
 +import org.bukkit.craftbukkit.CraftServer;
++import org.jetbrains.annotations.NotNull;
 +
++import java.util.Deque;
++import java.util.concurrent.ConcurrentLinkedDeque;
++import java.util.concurrent.Executor;
 +import java.util.concurrent.TimeUnit;
 +import java.util.concurrent.locks.LockSupport;
 +
@@ -546,15 +866,16 @@ index 0000000000000000000000000000000000000000..4f1ff25fb774e20c7e9c33368539072e
 + * WARNING:USE THIS WOULD MAKE BUKKIT PLUGINS CAN CRASH YOUR SERVER
 + */
 +@Deprecated(forRemoval = true)
-+public class CraftSchedulerRunner extends TickThread {
++public class CraftSchedulerRunner extends TickThread implements Executor {
 +    public static final CraftSchedulerRunner RUNNER_INSTANCE;
 +
 +    private static final long fullCycle = TimeUnit.MILLISECONDS.toNanos(50);
 +    private long lastTimeOut = 0;
 +    private volatile int tickCount = 0;
++    private final Deque<Runnable> localTasks = new ConcurrentLinkedDeque<>();
 +
 +    private CraftSchedulerRunner(){
-+        super();
++        super("Craft Scheduler Runner Thread");
 +    }
 +
 +    static {
@@ -562,6 +883,7 @@ index 0000000000000000000000000000000000000000..4f1ff25fb774e20c7e9c33368539072e
 +        RUNNER_INSTANCE.setName("Craft Scheduler Runner Thread");
 +        RUNNER_INSTANCE.setPriority(3);
 +        RUNNER_INSTANCE.setDaemon(true);
++        RUNNER_INSTANCE.start();
 +    }
 +
 +    public static boolean isRunnerThread(){
@@ -593,14 +915,188 @@ index 0000000000000000000000000000000000000000..4f1ff25fb774e20c7e9c33368539072e
 +    }
 +
 +    protected void doSchedulerTask(){
++        //Flush tasks
++        Runnable task;
++        while ((task = this.localTasks.poll()) != null){
++            try {
++                task.run();
++            }catch (Exception e){
++                e.printStackTrace();
++            }
++        }
++
++        //Do not run task when all tick actions are paused
++        if (!RegionTickHolder.INSTANCE.shouldRunNextTick(null)){
++            RegionTickHolder.INSTANCE.updateSchedulerRunnerStats(true);
++            return;
++        }
++
++        RegionTickHolder.INSTANCE.updateSchedulerRunnerStats(false);
++
 +        ((CraftServer) Bukkit.getServer()).getScheduler().mainThreadHeartbeat(this.tickCount++);
 +    }
++
++    @Override
++    public void execute(@NotNull Runnable command) {
++        this.localTasks.offer(command);
++    }
 +}
+diff --git a/src/main/java/me/earthme/molia/threadedregioncontroller/RegionTickHolder.java b/src/main/java/me/earthme/molia/threadedregioncontroller/RegionTickHolder.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..949bbc9f764579c034a31a60143428caf0619266
+--- /dev/null
++++ b/src/main/java/me/earthme/molia/threadedregioncontroller/RegionTickHolder.java
+@@ -0,0 +1,115 @@
++package me.earthme.molia.threadedregioncontroller;
++
++import com.google.common.collect.Maps;
++import io.papermc.paper.threadedregions.TickRegionScheduler;
++import me.earthme.molia.thread.CraftSchedulerRunner;
++
++import java.util.Map;
++import java.util.concurrent.atomic.AtomicBoolean;
++import java.util.concurrent.atomic.AtomicInteger;
++import java.util.concurrent.locks.Lock;
++import java.util.concurrent.locks.LockSupport;
++import java.util.concurrent.locks.ReentrantLock;
++
++public class RegionTickHolder {
++    public static final RegionTickHolder INSTANCE = new RegionTickHolder();
++
++    private final AtomicInteger totalCreated = new AtomicInteger();
++    private final AtomicInteger totalTicking = new AtomicInteger();
++    private final AtomicInteger totalIdle = new AtomicInteger();
++    private final AtomicBoolean schedulerRunnerBlocked = new AtomicBoolean(false);
++    private boolean global_shouldRunNextTick = true;
++    private final Map<TickRegionScheduler.TickThreadRunner,Boolean> single_shouldRunNextTick = Maps.newConcurrentMap();
++    private final Lock accessLock = new ReentrantLock(true);
++
++
++    public void updateSchedulerRunnerStats(boolean blocked){
++        this.schedulerRunnerBlocked.set(blocked);
++    }
++
++    public void releaseAllTickRunners(){
++        this.accessLock.lock();
++        try {
++            this.global_shouldRunNextTick = true;
++        }finally {
++            this.accessLock.unlock();
++        }
++    }
++
++    public void awaitAllTickRunnerIdle(){
++        for(;;){
++            if (this.totalTicking.get() == 0 && this.schedulerRunnerBlocked.get()){
++                this.accessLock.lock();
++                try {
++                    if (this.totalIdle.get() == this.single_shouldRunNextTick.size()){
++                        break;
++                    }
++                }finally {
++                    this.accessLock.unlock();
++                }
++            }
++
++            LockSupport.parkNanos(1_000_000L);
++        }
++    }
++
++    public void blockAllTickRunners(){
++        this.accessLock.lock();
++        try {
++            this.global_shouldRunNextTick = false;
++        }finally {
++            this.accessLock.unlock();
++        }
++    }
++
++    public void onRegionBreakOutIdle(){
++        this.totalIdle.getAndDecrement();
++    }
++
++    public void onRegionRunnerIdle(){
++        this.totalIdle.getAndIncrement();
++    }
++
++    public void onRegionRunnerFinishedCurrentTick(){
++        this.totalTicking.getAndDecrement();
++    }
++
++    public void onRegionRunnerStartTicking(){
++        this.totalTicking.getAndIncrement();
++    }
++
++    public void onRegionRunnerCreated(TickRegionScheduler.TickThreadRunner worker){
++        this.accessLock.lock();
++        try {
++            if (!this.global_shouldRunNextTick){
++                this.single_shouldRunNextTick.putIfAbsent(worker,false);
++            }
++
++            this.single_shouldRunNextTick.putIfAbsent(worker,true);
++        }finally {
++            this.accessLock.unlock();
++        }
++        this.totalCreated.getAndIncrement();
++    }
++
++    public void onRegionRunnerDestroyed(TickRegionScheduler.TickThreadRunner worker){
++        this.accessLock.lock();
++        try {
++            this.single_shouldRunNextTick.remove(worker);
++        }finally {
++            this.accessLock.unlock();
++        }
++    }
++
++    public boolean shouldRunNextTick(TickRegionScheduler.TickThreadRunner worker){
++        this.accessLock.lock();
++        try {
++            if (CraftSchedulerRunner.isRunnerThread()){
++                return this.global_shouldRunNextTick;
++            }
++            return this.global_shouldRunNextTick && this.single_shouldRunNextTick.get(worker) || !this.schedulerRunnerBlocked.get();
++        }finally {
++            this.accessLock.unlock();
++        }
++    }
++}
+diff --git a/src/main/java/net/minecraft/commands/Commands.java b/src/main/java/net/minecraft/commands/Commands.java
+index 44576310cc5b89c287b0ab7ba1a99d76b67f33dd..81ae9b32cb81375ae89c05df02ae798bf1430b36 100644
+--- a/src/main/java/net/minecraft/commands/Commands.java
++++ b/src/main/java/net/minecraft/commands/Commands.java
+@@ -149,7 +149,7 @@ public class Commands {
+         //CloneCommands.register(this.dispatcher, commandRegistryAccess); // Folia - region threading - TODO
+         DamageCommand.register(this.dispatcher, commandRegistryAccess);
+         DataCommands.register(this.dispatcher); // Folia - region threading - TODO // Kaiiju
+-        //DataPackCommand.register(this.dispatcher); // Folia - region threading - TODO
++        DataPackCommand.register(this.dispatcher); // Folia - region threading - TODO //Molia - Renable data pack command
+         //DebugCommand.register(this.dispatcher); // Folia - region threading - TODO
+         DefaultGameModeCommands.register(this.dispatcher);
+         DifficultyCommand.register(this.dispatcher);
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index 41414b8aefbbb1185180608c2edf2ff002e4a42b..a8379ad2e0eb8ace95239e8826b414d0b0df1d1c 100644
+index a9de0e7ddbc9367a992b98be56d9b2b86d946978..1b709b415fb529c099d669c384533f22d8ee6daa 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
-@@ -190,6 +190,7 @@ import org.bukkit.craftbukkit.util.CraftChatMessage;
+@@ -46,6 +46,7 @@ import java.util.concurrent.CompletableFuture;
+ import java.util.concurrent.Executor;
+ import java.util.concurrent.RejectedExecutionException;
+ import java.util.concurrent.atomic.AtomicReference;
++import java.util.concurrent.locks.LockSupport;
+ import java.util.function.BooleanSupplier;
+ import java.util.function.Consumer;
+ import java.util.function.Function;
+@@ -163,7 +164,7 @@ import net.minecraft.world.level.storage.ServerLevelData;
+ import net.minecraft.world.level.storage.WorldData;
+ import net.minecraft.world.level.storage.loot.LootDataManager;
+ import org.slf4j.Logger;
+-
++import me.earthme.molia.threadedregioncontroller.RegionTickHolder;
+ // CraftBukkit start
+ import com.mojang.datafixers.util.Pair;
+ import com.mojang.serialization.DynamicOps;
+@@ -191,6 +192,7 @@ import org.bukkit.craftbukkit.util.CraftChatMessage;
  import org.bukkit.craftbukkit.util.LazyPlayerSet;
  import org.bukkit.event.player.AsyncPlayerChatPreviewEvent;
  import org.bukkit.event.server.ServerLoadEvent;
@@ -608,7 +1104,7 @@ index 41414b8aefbbb1185180608c2edf2ff002e4a42b..a8379ad2e0eb8ace95239e8826b414d0
  // CraftBukkit end
  
  import co.aikar.timings.MinecraftTimings; // Paper
-@@ -2054,7 +2055,8 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -2058,7 +2060,8 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
      }
  
      public int getTickCount() {
@@ -618,11 +1114,65 @@ index 41414b8aefbbb1185180608c2edf2ff002e4a42b..a8379ad2e0eb8ace95239e8826b414d0
      }
  
      public int getSpawnProtectionRadius() {
+@@ -2185,13 +2188,16 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+     public CompletableFuture<Void> reloadResources(Collection<String> dataPacks, io.papermc.paper.event.server.ServerResourcesReloadedEvent.Cause cause) {
+         // Paper end
+         RegistryAccess.Frozen iregistrycustom_dimension = this.registries.getAccessForLoading(RegistryLayer.RELOADABLE);
+-        CompletableFuture<Void> completablefuture = CompletableFuture.supplyAsync(() -> {
++        CompletableFuture<Void> completablefuture = CompletableFuture.runAsync(() -> {
++            RegionTickHolder.INSTANCE.blockAllTickRunners(); //Molia - For data pack command
++            RegionTickHolder.INSTANCE.awaitAllTickRunnerIdle();
++        }).thenApplyAsync((nullValue) -> {
+             Stream<String> stream = dataPacks.stream(); // CraftBukkit - decompile error
+             PackRepository resourcepackrepository = this.packRepository;
+ 
+             Objects.requireNonNull(this.packRepository);
+             return stream.<Pack>map(resourcepackrepository::getPack).filter(Objects::nonNull).map(Pack::open).collect(ImmutableList.toImmutableList()); // CraftBukkit - decompile error // Paper - decompile error // todo: is this needed anymore?
+-        }, this).thenCompose((immutablelist) -> {
++        }, CraftSchedulerRunner.RUNNER_INSTANCE).thenCompose((immutablelist) -> {
+             MultiPackResourceManager resourcemanager = new MultiPackResourceManager(PackType.SERVER_DATA, immutablelist);
+ 
+             return ReloadableServerResources.loadResources(resourcemanager, iregistrycustom_dimension, this.worldData.enabledFeatures(), this.isDedicatedServer() ? Commands.CommandSelection.DEDICATED : Commands.CommandSelection.INTEGRATED, this.getFunctionCompilationLevel(), this.executor, this).whenComplete((datapackresources, throwable) -> {
+@@ -2213,9 +2219,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+             this.resources.managers.updateRegistryTags(this.registryAccess());
+             net.minecraft.world.item.alchemy.PotionBrewing.reload(); // Paper
+             // Paper start
+-            if (Thread.currentThread() != this.serverThread) {
+-                return;
+-            }
+             // this.getPlayerList().saveAll(); // Paper - we don't need to save everything, just advancements
+             for (ServerPlayer player : this.getPlayerList().getPlayers()) {
+                 player.getAdvancements().save();
+@@ -2226,12 +2229,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+             this.structureTemplateManager.onResourceManagerReload(this.resources.resourceManager);
+             org.bukkit.craftbukkit.block.data.CraftBlockData.reloadCache(); // Paper - cache block data strings, they can be defined by datapacks so refresh it here
+             new io.papermc.paper.event.server.ServerResourcesReloadedEvent(cause).callEvent(); // Paper - fire after everything has been reloaded
+-        }, this);
+-
+-        if (this.isSameThread()) {
+-            Objects.requireNonNull(completablefuture);
+-            this.managedBlock(completablefuture::isDone);
+-        }
++        }, CraftSchedulerRunner.RUNNER_INSTANCE).whenComplete((nullValue, exception) -> {
++            RegionTickHolder.INSTANCE.releaseAllTickRunners();
++        });
+ 
+         return completablefuture;
+     }
 diff --git a/src/main/java/net/minecraft/server/level/ChunkMap.java b/src/main/java/net/minecraft/server/level/ChunkMap.java
-index eac8dceca98f0f5a096373f7d84c1905360f32d5..d8392e286587057cee60b212e3ccacf9e9b35bb3 100644
+index eac8dceca98f0f5a096373f7d84c1905360f32d5..690beafe6d39be92986dd523ae0a822a51a76887 100644
 --- a/src/main/java/net/minecraft/server/level/ChunkMap.java
 +++ b/src/main/java/net/minecraft/server/level/ChunkMap.java
-@@ -86,6 +86,7 @@ import net.minecraft.world.entity.ai.village.poi.PoiManager;
+@@ -54,6 +54,8 @@ import java.util.function.IntSupplier;
+ import java.util.function.Supplier;
+ import java.util.stream.Collectors;
+ import javax.annotation.Nullable;
++
++import it.unimi.dsi.fastutil.objects.ReferenceSets;
+ import net.minecraft.CrashReport;
+ import net.minecraft.CrashReportCategory;
+ import net.minecraft.ReportedException;
+@@ -86,6 +88,7 @@ import net.minecraft.world.entity.ai.village.poi.PoiManager;
  import net.minecraft.world.entity.boss.EnderDragonPart;
  import net.minecraft.world.level.ChunkPos;
  import net.minecraft.world.level.GameRules;
@@ -630,7 +1180,7 @@ index eac8dceca98f0f5a096373f7d84c1905360f32d5..d8392e286587057cee60b212e3ccacf9
  import net.minecraft.world.level.chunk.ChunkAccess;
  import net.minecraft.world.level.chunk.ChunkGenerator;
  import net.minecraft.world.level.chunk.ChunkGeneratorStructureState;
-@@ -210,7 +211,7 @@ public class ChunkMap extends ChunkStorage implements ChunkHolder.PlayerProvider
+@@ -210,7 +213,7 @@ public class ChunkMap extends ChunkStorage implements ChunkHolder.PlayerProvider
          this.level.playerChunkLoader.removePlayer(player); // Paper - replace chunk loader
  
          // Paper start - optimise ChunkMap#anyPlayerCloseEnoughForSpawning
@@ -639,7 +1189,7 @@ index eac8dceca98f0f5a096373f7d84c1905360f32d5..d8392e286587057cee60b212e3ccacf9
          //this.playerChunkTickRangeMap.remove(player); // Folia - region threading
          // Paper end - optimise ChunkMap#anyPlayerCloseEnoughForSpawning
          //this.playerGeneralAreaMap.remove(player); // Paper - optimise checkDespawns // Folia - region threading
-@@ -1077,13 +1078,14 @@ public class ChunkMap extends ChunkStorage implements ChunkHolder.PlayerProvider
+@@ -1077,13 +1080,14 @@ public class ChunkMap extends ChunkStorage implements ChunkHolder.PlayerProvider
  
                      entity.tracker = playerchunkmap_entitytracker; // Paper - Fast access to tracker
                      // Folia - region threading
@@ -656,7 +1206,7 @@ index eac8dceca98f0f5a096373f7d84c1905360f32d5..d8392e286587057cee60b212e3ccacf9
                              if (possible.tracker != null) {
                                  possible.tracker.updatePlayer(entityplayer);
                              }
-@@ -1103,7 +1105,7 @@ public class ChunkMap extends ChunkStorage implements ChunkHolder.PlayerProvider
+@@ -1103,7 +1107,7 @@ public class ChunkMap extends ChunkStorage implements ChunkHolder.PlayerProvider
  
              this.updatePlayerStatus(entityplayer, false);
              // Folia start - region threading
@@ -665,8 +1215,17 @@ index eac8dceca98f0f5a096373f7d84c1905360f32d5..d8392e286587057cee60b212e3ccacf9
                  if (possible.tracker != null) {
                      possible.tracker.removePlayer(entityplayer);
                  }
+@@ -1256,7 +1260,7 @@ public class ChunkMap extends ChunkStorage implements ChunkHolder.PlayerProvider
+         final Entity entity;
+         private final int range;
+         SectionPos lastSectionPos;
+-        public final Set<ServerPlayerConnection> seenBy = new ReferenceOpenHashSet<>(); // Paper - optimise map impl
++        public final Set<ServerPlayerConnection> seenBy = ReferenceSets.synchronize(new ReferenceOpenHashSet<>()); // Paper - optimise map impl //DirtyMolia - Tracker issue fix
+ 
+         public TrackedEntity(Entity entity, int i, int j, boolean flag) {
+             this.serverEntity = new ServerEntity(ChunkMap.this.level, entity, j, flag, this::broadcast, this.seenBy); // CraftBukkit
 diff --git a/src/main/java/net/minecraft/server/level/ServerChunkCache.java b/src/main/java/net/minecraft/server/level/ServerChunkCache.java
-index e5dded0363b14608e834e63e678563b1423d66e7..1f85c9ed552a4b730055a9f78c79dae16d0ca585 100644
+index 14e6bc3586e54df762e3aad07f03bd24c527e95a..301e1d45d60ce1016392d52017d6f01d5ac3cb89 100644
 --- a/src/main/java/net/minecraft/server/level/ServerChunkCache.java
 +++ b/src/main/java/net/minecraft/server/level/ServerChunkCache.java
 @@ -49,6 +49,7 @@ import net.minecraft.world.level.storage.DimensionDataStorage;
@@ -687,10 +1246,10 @@ index e5dded0363b14608e834e63e678563b1423d66e7..1f85c9ed552a4b730055a9f78c79dae1
              // Paper start - optimise for loaded chunks
              LevelChunk ifLoaded = this.getChunkAtIfLoadedMainThread(x, z);
 diff --git a/src/main/java/net/minecraft/server/level/ServerLevel.java b/src/main/java/net/minecraft/server/level/ServerLevel.java
-index 7115a481bc8805333aa36af334132f98da9d8742..6c292eef5ea83887954785c78138e524526b31db 100644
+index 455c7c6db4740238fce14b4b857756ee2e17a86c..bcaa0099480447b26fb63e887752c797bd220c60 100644
 --- a/src/main/java/net/minecraft/server/level/ServerLevel.java
 +++ b/src/main/java/net/minecraft/server/level/ServerLevel.java
-@@ -1736,8 +1736,8 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -1737,8 +1737,8 @@ public class ServerLevel extends Level implements WorldGenLevel {
          } else {
              if (entity instanceof net.minecraft.world.entity.item.ItemEntity itemEntity && itemEntity.getItem().isEmpty()) return false; // Paper - Prevent empty items from being added
              // Paper start - capture all item additions to the world
@@ -701,7 +1260,7 @@ index 7115a481bc8805333aa36af334132f98da9d8742..6c292eef5ea83887954785c78138e524
                  return true;
              }
              // Paper end
-@@ -1894,7 +1894,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -1895,7 +1895,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
  
          if (Shapes.joinIsNotEmpty(voxelshape, voxelshape1, BooleanOp.NOT_SAME)) {
              List<PathNavigation> list = new ObjectArrayList();
@@ -710,7 +1269,7 @@ index 7115a481bc8805333aa36af334132f98da9d8742..6c292eef5ea83887954785c78138e524
  
              while (iterator.hasNext()) {
                  // CraftBukkit start - fix SPIGOT-6362
-@@ -1935,23 +1935,23 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -1936,23 +1936,23 @@ public class ServerLevel extends Level implements WorldGenLevel {
  
      @Override
      public void updateNeighborsAt(BlockPos pos, Block sourceBlock) {
@@ -739,7 +1298,7 @@ index 7115a481bc8805333aa36af334132f98da9d8742..6c292eef5ea83887954785c78138e524
      }
  
      @Override
-@@ -1997,7 +1997,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -1998,7 +1998,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
  
      @Override
      public void blockEvent(BlockPos pos, Block block, int type, int data) {
@@ -748,7 +1307,7 @@ index 7115a481bc8805333aa36af334132f98da9d8742..6c292eef5ea83887954785c78138e524
      }
  
      private void runBlockEvents() {
-@@ -2568,7 +2568,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -2569,7 +2569,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
      public void blockUpdated(BlockPos pos, Block block) {
          if (!this.isDebug()) {
              // CraftBukkit start
@@ -757,7 +1316,7 @@ index 7115a481bc8805333aa36af334132f98da9d8742..6c292eef5ea83887954785c78138e524
                  return;
              }
              // CraftBukkit end
-@@ -2773,11 +2773,11 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -2774,11 +2774,11 @@ public class ServerLevel extends Level implements WorldGenLevel {
  
          public void onTickingStart(Entity entity) {
              if (entity instanceof net.minecraft.world.entity.Marker && !paperConfig().entities.markers.tick) return; // Paper - Configurable marker ticking
@@ -771,7 +1330,7 @@ index 7115a481bc8805333aa36af334132f98da9d8742..6c292eef5ea83887954785c78138e524
              // Paper start - Reset pearls when they stop being ticked
              if (paperConfig().fixes.disableUnloadedChunkEnderpearlExploit && entity instanceof net.minecraft.world.entity.projectile.ThrownEnderpearl pearl) {
                  pearl.cachedOwner = null;
-@@ -2805,7 +2805,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -2806,7 +2806,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
                      Util.logAndPauseIfInIde("onTrackingStart called during navigation iteration", new IllegalStateException("onTrackingStart called during navigation iteration"));
                  }
  
@@ -780,7 +1339,7 @@ index 7115a481bc8805333aa36af334132f98da9d8742..6c292eef5ea83887954785c78138e524
              }
  
              if (entity instanceof EnderDragon) {
-@@ -2900,7 +2900,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -2901,7 +2901,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
                      Util.logAndPauseIfInIde("onTrackingStart called during navigation iteration", new IllegalStateException("onTrackingStart called during navigation iteration"));
                  }
  
@@ -790,10 +1349,10 @@ index 7115a481bc8805333aa36af334132f98da9d8742..6c292eef5ea83887954785c78138e524
  
              if (entity instanceof EnderDragon) {
 diff --git a/src/main/java/net/minecraft/server/level/ServerPlayer.java b/src/main/java/net/minecraft/server/level/ServerPlayer.java
-index a14b1ff86c46a77ceb55fbcb5eba822f50705ae3..6f3764cb3f1ba6b1f3fbb3ac45b8a1918d654257 100644
+index 9907367c7862f24f22c806d466f7223a4cef18c8..fdd88ac83ff56a235d68229280d0279ee35f9776 100644
 --- a/src/main/java/net/minecraft/server/level/ServerPlayer.java
 +++ b/src/main/java/net/minecraft/server/level/ServerPlayer.java
-@@ -1325,7 +1325,7 @@ public class ServerPlayer extends Player {
+@@ -1330,7 +1330,7 @@ public class ServerPlayer extends Player {
              ServerPlayer.this.reset();
          }
          // must be manually removed from connections, delay until after reset() so that we do not trip any thread checks
@@ -802,11 +1361,33 @@ index a14b1ff86c46a77ceb55fbcb5eba822f50705ae3..6f3764cb3f1ba6b1f3fbb3ac45b8a191
  
          BlockPos respawnPos = this.getRespawnPosition();
          float respawnAngle = this.getRespawnAngle();
+diff --git a/src/main/java/net/minecraft/util/thread/BlockableEventLoop.java b/src/main/java/net/minecraft/util/thread/BlockableEventLoop.java
+index 83701fbfaa56a232593ee8f11a3afb8941238bfa..5815afa3a85e23b25aa04acb5ac61bc39892b658 100644
+--- a/src/main/java/net/minecraft/util/thread/BlockableEventLoop.java
++++ b/src/main/java/net/minecraft/util/thread/BlockableEventLoop.java
+@@ -10,6 +10,8 @@ import java.util.concurrent.Executor;
+ import java.util.concurrent.locks.LockSupport;
+ import java.util.function.BooleanSupplier;
+ import java.util.function.Supplier;
++
++import io.papermc.paper.util.TickThread;
+ import net.minecraft.util.profiling.metrics.MetricCategory;
+ import net.minecraft.util.profiling.metrics.MetricSampler;
+ import net.minecraft.util.profiling.metrics.MetricsRegistry;
+@@ -71,7 +73,7 @@ public abstract class BlockableEventLoop<R extends Runnable> implements Profiler
+     }
+ 
+     public void executeBlocking(Runnable runnable) {
+-        if (!this.isSameThread()) {
++        if (!this.isSameThread() && !TickThread.isTickThread()) { //Molia - for data pack command
+             this.submitAsync(runnable).join();
+         } else {
+             runnable.run();
 diff --git a/src/main/java/net/minecraft/world/entity/LivingEntity.java b/src/main/java/net/minecraft/world/entity/LivingEntity.java
-index 2da522f89a7c44208ca1ba9139efe723a519fabc..9f7d7498769c27a8899f71f30a1b8e3aac9e4d2f 100644
+index 318fbdf7cdd2db3026184d86f61a91b53aa1bd4d..4acdd81a72567248b9a62595f08179a2abca647d 100644
 --- a/src/main/java/net/minecraft/world/entity/LivingEntity.java
 +++ b/src/main/java/net/minecraft/world/entity/LivingEntity.java
-@@ -3446,7 +3446,7 @@ public abstract class LivingEntity extends Entity implements Attackable {
+@@ -3470,7 +3470,7 @@ public abstract class LivingEntity extends Entity implements Attackable {
          this.pushEntities();
          this.level().getProfiler().pop();
          // Paper start
@@ -1176,11 +1757,45 @@ index 66ee61f27dc435e27c4792b6cf4f320b91a54c57..9efda2549dfe6b7178a7d043ff884be3
          // SPIGOT-6895: Call StructureGrowEvent and BlockFertilizeEvent
          worldData.captureTreeGeneration = true; // Folia - region threading
          InteractionResult result = BoneMealItem.applyBonemeal(context);
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+index 36fc7444514a82532731026a0c4402d2ec04e9d2..014aa71d311e58646e2d316b50fb287871f7d347 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+@@ -1301,7 +1301,8 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
+     public boolean teleport(Location location, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause cause, io.papermc.paper.entity.TeleportFlag... flags) {
+         // Folia start - region threading
+         if (true) {
+-            throw new UnsupportedOperationException("Must use teleportAsync while in region threading");
++            //throw new UnsupportedOperationException("Must use teleportAsync while in region threading");
++            return teleportAsync(location,cause).join();
+         }
+         // Folia end - region threading
+         java.util.Set<net.minecraft.world.entity.RelativeMovement> relativeArguments;
 diff --git a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
-index e24d653fafcd88e01786b77539c506bcf3751c2c..c057c2942b3b9c33c03051e30f3196fcac99d331 100644
+index e24d653fafcd88e01786b77539c506bcf3751c2c..a3900022ab2857b3cd3c39ef7285188bcb4197de 100644
 --- a/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
 +++ b/src/main/java/org/bukkit/craftbukkit/scheduler/CraftScheduler.java
-@@ -530,7 +530,7 @@ public class CraftScheduler implements BukkitScheduler {
+@@ -45,7 +45,7 @@ import org.bukkit.scheduler.BukkitWorker;
+  */
+ public class CraftScheduler implements BukkitScheduler {
+ 
+-    static Plugin MINECRAFT = new MinecraftInternalPlugin();
++    public static Plugin MINECRAFT = new MinecraftInternalPlugin();
+     /**
+      * The start ID for the counter.
+      */
+@@ -107,8 +107,9 @@ public class CraftScheduler implements BukkitScheduler {
+         }
+     };
+     private CraftAsyncDebugger debugTail = this.debugHead;
+-
+     */ // Paper end
++    //Molia start - For datapack command
++
+     private static final int RECENT_TICKS;
+ 
+     static {
+@@ -530,7 +531,7 @@ public class CraftScheduler implements BukkitScheduler {
      }
  
      protected CraftTask handle(final CraftTask task, final long delay) { // Paper
