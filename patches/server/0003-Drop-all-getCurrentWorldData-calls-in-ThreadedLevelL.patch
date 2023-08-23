@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: MrHua269 <wangxyper@163.com>
+Date: Wed, 23 Aug 2023 12:32:35 +0800
+Subject: [PATCH] Drop all getCurrentWorldData calls in
+ ThreadedLevelLightEngine
+
+
+diff --git a/src/main/java/net/minecraft/server/level/ThreadedLevelLightEngine.java b/src/main/java/net/minecraft/server/level/ThreadedLevelLightEngine.java
+index b3d9133a569c0257c3ad2728f023a883fa730fad..00253f0f08adcf6535d6cb0444b61555ad8d687f 100644
+--- a/src/main/java/net/minecraft/server/level/ThreadedLevelLightEngine.java
++++ b/src/main/java/net/minecraft/server/level/ThreadedLevelLightEngine.java
+@@ -15,6 +15,7 @@ import net.minecraft.core.SectionPos;
+ import net.minecraft.util.thread.ProcessorHandle;
+ import net.minecraft.util.thread.ProcessorMailbox;
+ import net.minecraft.world.level.ChunkPos;
++import net.minecraft.world.level.Level;
+ import net.minecraft.world.level.LightLayer;
+ import net.minecraft.world.level.chunk.ChunkAccess;
+ import net.minecraft.world.level.chunk.DataLayer;
+@@ -154,7 +155,7 @@ public class ThreadedLevelLightEngine extends LevelLightEngine implements AutoCl
+             return;
+         }
+ 
+-        final int references = this.chunkMap.level.getCurrentWorldData().chunksBeingWorkedOn.addTo(key, 1); // Folia - region threading
++        final int references = Level.WORLD_DATA_POOL.getDataAnyThread(this.chunkMap.level,new BlockPos(chunkX,0,chunkZ)).chunksBeingWorkedOn.addTo(key, 1); // Folia - region threading
+         if (references == 0) {
+             final ChunkPos pos = new ChunkPos(chunkX, chunkZ);
+             world.getChunkSource().addRegionTicket(ca.spottedleaf.starlight.common.light.StarLightInterface.CHUNK_WORK_TICKET, pos, 0, pos);
+@@ -164,13 +165,13 @@ public class ThreadedLevelLightEngine extends LevelLightEngine implements AutoCl
+         updateFuture.thenAccept((final Void ignore) -> {
+             io.papermc.paper.threadedregions.RegionizedServer.getInstance().taskQueue.queueTickTaskQueue(
+                 this.chunkMap.level, chunkX, chunkZ, () -> {
+-                    final int newReferences = this.chunkMap.level.getCurrentWorldData().chunksBeingWorkedOn.get(key);
++                    final int newReferences = Level.WORLD_DATA_POOL.getDataAnyThread(this.chunkMap.level,new BlockPos(chunkX,0,chunkZ)).chunksBeingWorkedOn.get(key);
+                     if (newReferences == 1) {
+-                        this.chunkMap.level.getCurrentWorldData().chunksBeingWorkedOn.remove(key);
++                        Level.WORLD_DATA_POOL.getDataAnyThread(this.chunkMap.level,new BlockPos(chunkX,0,chunkZ)).chunksBeingWorkedOn.remove(key);
+                         final ChunkPos pos = new ChunkPos(chunkX, chunkZ);
+                         world.getChunkSource().removeRegionTicket(ca.spottedleaf.starlight.common.light.StarLightInterface.CHUNK_WORK_TICKET, pos, 0, pos);
+                     } else {
+-                        this.chunkMap.level.getCurrentWorldData().chunksBeingWorkedOn.put(key, newReferences - 1);
++                        Level.WORLD_DATA_POOL.getDataAnyThread(this.chunkMap.level,new BlockPos(chunkX,0,chunkZ)).chunksBeingWorkedOn.put(key, newReferences - 1);
+                     }
+                 }
+             );
