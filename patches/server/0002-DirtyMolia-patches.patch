@@ -1384,10 +1384,10 @@ index 83701fbfaa56a232593ee8f11a3afb8941238bfa..5815afa3a85e23b25aa04acb5ac61bc3
          } else {
              runnable.run();
 diff --git a/src/main/java/net/minecraft/world/entity/LivingEntity.java b/src/main/java/net/minecraft/world/entity/LivingEntity.java
-index 318fbdf7cdd2db3026184d86f61a91b53aa1bd4d..4acdd81a72567248b9a62595f08179a2abca647d 100644
+index 1b909cb52c8289a757e9497bd811bc123e79b932..5b397a59ccfb7e0fc0e32c375f4e43b068f54eb4 100644
 --- a/src/main/java/net/minecraft/world/entity/LivingEntity.java
 +++ b/src/main/java/net/minecraft/world/entity/LivingEntity.java
-@@ -3470,7 +3470,7 @@ public abstract class LivingEntity extends Entity implements Attackable {
+@@ -3494,7 +3494,7 @@ public abstract class LivingEntity extends Entity implements Attackable {
          this.pushEntities();
          this.level().getProfiler().pop();
          // Paper start
