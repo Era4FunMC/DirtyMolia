@@ -1,0 +1,117 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: MrHua269 <wangxyper@163.com>
+Date: Wed, 23 Aug 2023 15:05:00 +0800
+Subject: [PATCH] Fix memory leking and tree growing issue
+
+
+diff --git a/src/main/java/io/papermc/paper/threadedregions/RegionizedWorldData.java b/src/main/java/io/papermc/paper/threadedregions/RegionizedWorldData.java
+index c6036227c3999b73fc2816825dcd0f29d36c5296..f821a6f64e21aa6cb7f237eaf5ff6a447c878453 100644
+--- a/src/main/java/io/papermc/paper/threadedregions/RegionizedWorldData.java
++++ b/src/main/java/io/papermc/paper/threadedregions/RegionizedWorldData.java
+@@ -4,6 +4,7 @@ import com.destroystokyo.paper.util.maplist.ReferenceList;
+ import com.destroystokyo.paper.util.misc.PlayerAreaMap;
+ import com.destroystokyo.paper.util.misc.PooledLinkedHashSets;
+ import com.google.common.collect.Lists;
++import com.google.common.collect.Maps;
+ import com.google.common.collect.Sets;
+ import com.mojang.logging.LogUtils;
+ import io.papermc.paper.chunk.system.scheduling.ChunkHolderManager;
+@@ -335,8 +336,8 @@ public final class RegionizedWorldData {
+     public boolean preventPoiUpdated = false; // CraftBukkit - SPIGOT-5710
+     public boolean captureBlockStates = false;
+     public boolean captureTreeGeneration = false;
+-    public final Map<BlockPos, CraftBlockState> capturedBlockStates = Reference2ObjectMaps.synchronize(new Reference2ObjectLinkedOpenHashMap<>()); // Paper
+-    public final Map<BlockPos, BlockEntity> capturedTileEntities = Reference2ObjectMaps.synchronize(new Reference2ObjectLinkedOpenHashMap<>()); // Paper
++    public final Map<BlockPos, CraftBlockState> capturedBlockStates = Maps.newConcurrentMap(); // Paper
++    public final Map<BlockPos, BlockEntity> capturedTileEntities = Maps.newConcurrentMap(); // Paper
+     public List<ItemEntity> captureDrops;
+     // Paper start
+     public int wakeupInactiveRemainingAnimals;
+diff --git a/src/main/java/io/papermc/paper/threadedregions/TickRegionScheduler.java b/src/main/java/io/papermc/paper/threadedregions/TickRegionScheduler.java
+index d1c9dd1a9fad45230e0db7781f0549d1eff5d9a3..983d84eef63d35be2518b5d28aee8f458a1f1d3c 100644
+--- a/src/main/java/io/papermc/paper/threadedregions/TickRegionScheduler.java
++++ b/src/main/java/io/papermc/paper/threadedregions/TickRegionScheduler.java
+@@ -65,13 +65,14 @@ public final class TickRegionScheduler {
+         if (region == null && tickThreadRunner.currentTickingRegion == null) {
+             throw new IllegalStateException("Trying to double unset ticking region!");
+         }
+-        tickThreadRunner.currentTickingRegion = region;
+         if (region != null) {
++            tickThreadRunner.currentTickingRegion = region;
+             tickThreadRunner.currentTickingWorldRegionizedData = region.regioniser.world.worldRegionData.get();
+             Level.WORLD_DATA_POOL.onUpdateRegionWorldData(tickThreadRunner,tickThreadRunner.currentTickingWorldRegionizedData);
+         } else {
+             tickThreadRunner.currentTickingWorldRegionizedData = null;
+             Level.WORLD_DATA_POOL.dropRegionWorldData(tickThreadRunner);
++            tickThreadRunner.currentTickingRegion = null;
+         }
+     }
+ 
+diff --git a/src/main/java/me/earthme/molia/pool/WorldDataPool.java b/src/main/java/me/earthme/molia/pool/WorldDataPool.java
+index b47732e2cf5b17330b3eb509e3784ecad2477ef9..778ce939712c2238ca94b277f79038a3bafdd488 100644
+--- a/src/main/java/me/earthme/molia/pool/WorldDataPool.java
++++ b/src/main/java/me/earthme/molia/pool/WorldDataPool.java
+@@ -21,18 +21,12 @@ public class WorldDataPool {
+ 
+     public RegionizedWorldData getDataAnyThread(Entity ent){
+         final RegionizedWorldData got = ent.level().getCurrentWorldData();
+-        if (got == null){
+-            return getDataOffTickThread(ent.getBukkitEntity().getLocation());
+-        }
+-        return got;
++        return got == null ? getDataOffTickThread(ent.getBukkitEntity().getLocation()) : got;
+     }
+ 
+     public RegionizedWorldData getDataAnyThread(Level level, BlockPos pos){
+         final RegionizedWorldData got = level.getCurrentWorldData();
+-        if (got == null){
+-            return getDataOffTickThread(new Location(level.getWorld(),pos.getX(),0,pos.getZ()));
+-        }
+-        return got;
++        return got == null ? getDataOffTickThread(new Location(level.getWorld(),pos.getX(),0,pos.getZ())) : got;
+     }
+ 
+     @Nullable
+diff --git a/src/main/java/net/minecraft/core/dispenser/DispenseItemBehavior.java b/src/main/java/net/minecraft/core/dispenser/DispenseItemBehavior.java
+index ab5b07a50f1742acb175a5fc0446e9c6064029c4..a1d3483590b5392132226e9e8785830bea1036d7 100644
+--- a/src/main/java/net/minecraft/core/dispenser/DispenseItemBehavior.java
++++ b/src/main/java/net/minecraft/core/dispenser/DispenseItemBehavior.java
+@@ -832,7 +832,7 @@ public interface DispenseItemBehavior {
+                     }
+                 }
+ 
+-                io.papermc.paper.threadedregions.RegionizedWorldData worldData = worldserver.getCurrentWorldData(); // Folia - region threading
++                io.papermc.paper.threadedregions.RegionizedWorldData worldData = Level.WORLD_DATA_POOL.getDataAnyThread(pointer.getLevel(),pointer.getPos()); // Folia - region threading
+                 worldData.captureTreeGeneration = true; // Folia - region threading
+                 // CraftBukkit end
+ 
+diff --git a/src/main/java/net/minecraft/server/level/ThreadedLevelLightEngine.java b/src/main/java/net/minecraft/server/level/ThreadedLevelLightEngine.java
+index 00253f0f08adcf6535d6cb0444b61555ad8d687f..a3098bc84a2ed4a93f3f2237ef805b83e3793044 100644
+--- a/src/main/java/net/minecraft/server/level/ThreadedLevelLightEngine.java
++++ b/src/main/java/net/minecraft/server/level/ThreadedLevelLightEngine.java
+@@ -155,7 +155,7 @@ public class ThreadedLevelLightEngine extends LevelLightEngine implements AutoCl
+             return;
+         }
+ 
+-        final int references = Level.WORLD_DATA_POOL.getDataAnyThread(this.chunkMap.level,new BlockPos(chunkX,0,chunkZ)).chunksBeingWorkedOn.addTo(key, 1); // Folia - region threading
++        final int references = Level.WORLD_DATA_POOL.getDataAnyThread(this.chunkMap.level,new BlockPos(chunkX << 4,0,chunkZ << 4)).chunksBeingWorkedOn.addTo(key, 1); // Folia - region threading
+         if (references == 0) {
+             final ChunkPos pos = new ChunkPos(chunkX, chunkZ);
+             world.getChunkSource().addRegionTicket(ca.spottedleaf.starlight.common.light.StarLightInterface.CHUNK_WORK_TICKET, pos, 0, pos);
+@@ -165,13 +165,13 @@ public class ThreadedLevelLightEngine extends LevelLightEngine implements AutoCl
+         updateFuture.thenAccept((final Void ignore) -> {
+             io.papermc.paper.threadedregions.RegionizedServer.getInstance().taskQueue.queueTickTaskQueue(
+                 this.chunkMap.level, chunkX, chunkZ, () -> {
+-                    final int newReferences = Level.WORLD_DATA_POOL.getDataAnyThread(this.chunkMap.level,new BlockPos(chunkX,0,chunkZ)).chunksBeingWorkedOn.get(key);
++                    final int newReferences = Level.WORLD_DATA_POOL.getDataAnyThread(this.chunkMap.level,new BlockPos(chunkX << 4,0,chunkZ << 4)).chunksBeingWorkedOn.get(key);
+                     if (newReferences == 1) {
+-                        Level.WORLD_DATA_POOL.getDataAnyThread(this.chunkMap.level,new BlockPos(chunkX,0,chunkZ)).chunksBeingWorkedOn.remove(key);
++                        Level.WORLD_DATA_POOL.getDataAnyThread(this.chunkMap.level,new BlockPos(chunkX << 4,0,chunkZ << 4)).chunksBeingWorkedOn.remove(key);
+                         final ChunkPos pos = new ChunkPos(chunkX, chunkZ);
+                         world.getChunkSource().removeRegionTicket(ca.spottedleaf.starlight.common.light.StarLightInterface.CHUNK_WORK_TICKET, pos, 0, pos);
+                     } else {
+-                        Level.WORLD_DATA_POOL.getDataAnyThread(this.chunkMap.level,new BlockPos(chunkX,0,chunkZ)).chunksBeingWorkedOn.put(key, newReferences - 1);
++                        Level.WORLD_DATA_POOL.getDataAnyThread(this.chunkMap.level,new BlockPos(chunkX << 4,0,chunkZ << 4)).chunksBeingWorkedOn.put(key, newReferences - 1);
+                     }
+                 }
+             );
