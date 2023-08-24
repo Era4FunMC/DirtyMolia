@@ -1246,10 +1246,10 @@ index 14e6bc3586e54df762e3aad07f03bd24c527e95a..301e1d45d60ce1016392d52017d6f01d
              // Paper start - optimise for loaded chunks
              LevelChunk ifLoaded = this.getChunkAtIfLoadedMainThread(x, z);
 diff --git a/src/main/java/net/minecraft/server/level/ServerLevel.java b/src/main/java/net/minecraft/server/level/ServerLevel.java
-index 455c7c6db4740238fce14b4b857756ee2e17a86c..bcaa0099480447b26fb63e887752c797bd220c60 100644
+index 7115a481bc8805333aa36af334132f98da9d8742..6c292eef5ea83887954785c78138e524526b31db 100644
 --- a/src/main/java/net/minecraft/server/level/ServerLevel.java
 +++ b/src/main/java/net/minecraft/server/level/ServerLevel.java
-@@ -1737,8 +1737,8 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -1736,8 +1736,8 @@ public class ServerLevel extends Level implements WorldGenLevel {
          } else {
              if (entity instanceof net.minecraft.world.entity.item.ItemEntity itemEntity && itemEntity.getItem().isEmpty()) return false; // Paper - Prevent empty items from being added
              // Paper start - capture all item additions to the world
@@ -1260,7 +1260,7 @@ index 455c7c6db4740238fce14b4b857756ee2e17a86c..bcaa0099480447b26fb63e887752c797
                  return true;
              }
              // Paper end
-@@ -1895,7 +1895,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -1894,7 +1894,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
  
          if (Shapes.joinIsNotEmpty(voxelshape, voxelshape1, BooleanOp.NOT_SAME)) {
              List<PathNavigation> list = new ObjectArrayList();
@@ -1269,7 +1269,7 @@ index 455c7c6db4740238fce14b4b857756ee2e17a86c..bcaa0099480447b26fb63e887752c797
  
              while (iterator.hasNext()) {
                  // CraftBukkit start - fix SPIGOT-6362
-@@ -1936,23 +1936,23 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -1935,23 +1935,23 @@ public class ServerLevel extends Level implements WorldGenLevel {
  
      @Override
      public void updateNeighborsAt(BlockPos pos, Block sourceBlock) {
@@ -1298,7 +1298,7 @@ index 455c7c6db4740238fce14b4b857756ee2e17a86c..bcaa0099480447b26fb63e887752c797
      }
  
      @Override
-@@ -1998,7 +1998,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -1997,7 +1997,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
  
      @Override
      public void blockEvent(BlockPos pos, Block block, int type, int data) {
@@ -1307,7 +1307,7 @@ index 455c7c6db4740238fce14b4b857756ee2e17a86c..bcaa0099480447b26fb63e887752c797
      }
  
      private void runBlockEvents() {
-@@ -2569,7 +2569,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -2568,7 +2568,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
      public void blockUpdated(BlockPos pos, Block block) {
          if (!this.isDebug()) {
              // CraftBukkit start
@@ -1316,7 +1316,7 @@ index 455c7c6db4740238fce14b4b857756ee2e17a86c..bcaa0099480447b26fb63e887752c797
                  return;
              }
              // CraftBukkit end
-@@ -2774,11 +2774,11 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -2773,11 +2773,11 @@ public class ServerLevel extends Level implements WorldGenLevel {
  
          public void onTickingStart(Entity entity) {
              if (entity instanceof net.minecraft.world.entity.Marker && !paperConfig().entities.markers.tick) return; // Paper - Configurable marker ticking
@@ -1330,7 +1330,7 @@ index 455c7c6db4740238fce14b4b857756ee2e17a86c..bcaa0099480447b26fb63e887752c797
              // Paper start - Reset pearls when they stop being ticked
              if (paperConfig().fixes.disableUnloadedChunkEnderpearlExploit && entity instanceof net.minecraft.world.entity.projectile.ThrownEnderpearl pearl) {
                  pearl.cachedOwner = null;
-@@ -2806,7 +2806,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -2805,7 +2805,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
                      Util.logAndPauseIfInIde("onTrackingStart called during navigation iteration", new IllegalStateException("onTrackingStart called during navigation iteration"));
                  }
  
@@ -1339,7 +1339,7 @@ index 455c7c6db4740238fce14b4b857756ee2e17a86c..bcaa0099480447b26fb63e887752c797
              }
  
              if (entity instanceof EnderDragon) {
-@@ -2901,7 +2901,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -2900,7 +2900,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
                      Util.logAndPauseIfInIde("onTrackingStart called during navigation iteration", new IllegalStateException("onTrackingStart called during navigation iteration"));
                  }
  
@@ -1384,10 +1384,10 @@ index 83701fbfaa56a232593ee8f11a3afb8941238bfa..5815afa3a85e23b25aa04acb5ac61bc3
          } else {
              runnable.run();
 diff --git a/src/main/java/net/minecraft/world/entity/LivingEntity.java b/src/main/java/net/minecraft/world/entity/LivingEntity.java
-index 1b909cb52c8289a757e9497bd811bc123e79b932..5b397a59ccfb7e0fc0e32c375f4e43b068f54eb4 100644
+index 318fbdf7cdd2db3026184d86f61a91b53aa1bd4d..4acdd81a72567248b9a62595f08179a2abca647d 100644
 --- a/src/main/java/net/minecraft/world/entity/LivingEntity.java
 +++ b/src/main/java/net/minecraft/world/entity/LivingEntity.java
-@@ -3494,7 +3494,7 @@ public abstract class LivingEntity extends Entity implements Attackable {
+@@ -3470,7 +3470,7 @@ public abstract class LivingEntity extends Entity implements Attackable {
          this.pushEntities();
          this.level().getProfiler().pop();
          // Paper start
