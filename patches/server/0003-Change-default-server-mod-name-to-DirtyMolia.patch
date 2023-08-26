@@ -5,10 +5,10 @@ Subject: [PATCH] Change default server mod name to DirtyMolia
 
 
 diff --git a/src/main/java/me/earthme/molia/MoliaConfig.java b/src/main/java/me/earthme/molia/MoliaConfig.java
-index f20f39bd060c57f196b0dc309a4679fcf2589f51..4fdcbf5fd46a11b22280a7763564158760066ea2 100644
+index 051c807211c369b31442917d35cbe5c09681d95a..d8b41a0035741214ff19357dc4598b09b95e8d80 100644
 --- a/src/main/java/me/earthme/molia/MoliaConfig.java
 +++ b/src/main/java/me/earthme/molia/MoliaConfig.java
-@@ -34,7 +34,7 @@ public class MoliaConfig {
+@@ -37,7 +37,7 @@ public class MoliaConfig {
      public static boolean fakeplayerResident = false;
      public static List<String> unableFakeplayerNames = Lists.newArrayList();
      public static int fakeplayerLimit = 10;
