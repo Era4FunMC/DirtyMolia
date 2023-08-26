@@ -1078,7 +1078,7 @@ index ab5b07a50f1742acb175a5fc0446e9c6064029c4..a1d3483590b5392132226e9e8785830b
                  // CraftBukkit end
  
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index e4840801dc6c97f2705f7f966fe2cb806c436603..4898acd1106eaed6ada140a27ffc09173660e545 100644
+index b1adb4000987021be2c5e3ac1184f3266aae3a57..55e43dcf4e22a8ea38bf1d6835d2d655aba256a2 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -46,6 +46,7 @@ import java.util.concurrent.CompletableFuture;
@@ -1089,7 +1089,7 @@ index e4840801dc6c97f2705f7f966fe2cb806c436603..4898acd1106eaed6ada140a27ffc0917
  import java.util.function.BooleanSupplier;
  import java.util.function.Consumer;
  import java.util.function.Function;
-@@ -163,7 +164,7 @@ import net.minecraft.world.level.storage.ServerLevelData;
+@@ -165,7 +166,7 @@ import net.minecraft.world.level.storage.ServerLevelData;
  import net.minecraft.world.level.storage.WorldData;
  import net.minecraft.world.level.storage.loot.LootDataManager;
  import org.slf4j.Logger;
@@ -1098,7 +1098,7 @@ index e4840801dc6c97f2705f7f966fe2cb806c436603..4898acd1106eaed6ada140a27ffc0917
  // CraftBukkit start
  import com.mojang.datafixers.util.Pair;
  import com.mojang.serialization.DynamicOps;
-@@ -191,6 +192,7 @@ import org.bukkit.craftbukkit.util.CraftChatMessage;
+@@ -193,6 +194,7 @@ import org.bukkit.craftbukkit.util.CraftChatMessage;
  import org.bukkit.craftbukkit.util.LazyPlayerSet;
  import org.bukkit.event.player.AsyncPlayerChatPreviewEvent;
  import org.bukkit.event.server.ServerLoadEvent;
@@ -1106,7 +1106,7 @@ index e4840801dc6c97f2705f7f966fe2cb806c436603..4898acd1106eaed6ada140a27ffc0917
  // CraftBukkit end
  
  import co.aikar.timings.MinecraftTimings; // Paper
-@@ -319,7 +321,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -321,7 +323,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
      @Override
      public void execute(Runnable runnable) {
          if (true) {
@@ -1117,7 +1117,7 @@ index e4840801dc6c97f2705f7f966fe2cb806c436603..4898acd1106eaed6ada140a27ffc0917
          }
          super.execute(runnable);
      }
-@@ -2058,7 +2062,8 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -2060,7 +2064,8 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
      }
  
      public int getTickCount() {
@@ -1127,7 +1127,7 @@ index e4840801dc6c97f2705f7f966fe2cb806c436603..4898acd1106eaed6ada140a27ffc0917
      }
  
      public int getSpawnProtectionRadius() {
-@@ -2185,13 +2190,16 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -2187,13 +2192,16 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
      public CompletableFuture<Void> reloadResources(Collection<String> dataPacks, io.papermc.paper.event.server.ServerResourcesReloadedEvent.Cause cause) {
          // Paper end
          RegistryAccess.Frozen iregistrycustom_dimension = this.registries.getAccessForLoading(RegistryLayer.RELOADABLE);
@@ -1146,7 +1146,7 @@ index e4840801dc6c97f2705f7f966fe2cb806c436603..4898acd1106eaed6ada140a27ffc0917
              MultiPackResourceManager resourcemanager = new MultiPackResourceManager(PackType.SERVER_DATA, immutablelist);
  
              return ReloadableServerResources.loadResources(resourcemanager, iregistrycustom_dimension, this.worldData.enabledFeatures(), this.isDedicatedServer() ? Commands.CommandSelection.DEDICATED : Commands.CommandSelection.INTEGRATED, this.getFunctionCompilationLevel(), this.executor, this).whenComplete((datapackresources, throwable) -> {
-@@ -2213,9 +2221,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -2215,9 +2223,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
              this.resources.managers.updateRegistryTags(this.registryAccess());
              net.minecraft.world.item.alchemy.PotionBrewing.reload(); // Paper
              // Paper start
@@ -1156,7 +1156,7 @@ index e4840801dc6c97f2705f7f966fe2cb806c436603..4898acd1106eaed6ada140a27ffc0917
              // this.getPlayerList().saveAll(); // Paper - we don't need to save everything, just advancements
              for (ServerPlayer player : this.getPlayerList().getPlayers()) {
                  player.getAdvancements().save();
-@@ -2226,12 +2231,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -2228,12 +2233,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
              this.structureTemplateManager.onResourceManagerReload(this.resources.resourceManager);
              org.bukkit.craftbukkit.block.data.CraftBlockData.reloadCache(); // Paper - cache block data strings, they can be defined by datapacks so refresh it here
              new io.papermc.paper.event.server.ServerResourcesReloadedEvent(cause).callEvent(); // Paper - fire after everything has been reloaded
