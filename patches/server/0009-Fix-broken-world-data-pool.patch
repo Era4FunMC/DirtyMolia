@@ -1,0 +1,52 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: wangxyper <wangxyper@163.com>
+Date: Sat, 9 Sep 2023 17:52:39 +0800
+Subject: [PATCH] Fix broken world data pool
+
+
+diff --git a/src/main/java/io/papermc/paper/threadedregions/ThreadedRegionizer.java b/src/main/java/io/papermc/paper/threadedregions/ThreadedRegionizer.java
+index ceda561d9a60b9fac96e211755629452e86192a2..79af73f47864383197e2c01f868821ebd0b1d721 100644
+--- a/src/main/java/io/papermc/paper/threadedregions/ThreadedRegionizer.java
++++ b/src/main/java/io/papermc/paper/threadedregions/ThreadedRegionizer.java
+@@ -842,7 +842,6 @@ public final class ThreadedRegionizer<R extends ThreadedRegionizer.ThreadedRegio
+ 
+             // finally, merge data
+             if (this.data != null) {
+-                Level.WORLD_DATA_POOL.dropRegionWorldData(this);
+                 this.data.mergeInto(mergeTarget);
+             }
+         }
+diff --git a/src/main/java/io/papermc/paper/threadedregions/TickRegionScheduler.java b/src/main/java/io/papermc/paper/threadedregions/TickRegionScheduler.java
+index e488d6713bdff14a4c94a7d39eb8500bde6656c0..fae22f0820fa92e07ab72ba822acbd1a7ce7bb5b 100644
+--- a/src/main/java/io/papermc/paper/threadedregions/TickRegionScheduler.java
++++ b/src/main/java/io/papermc/paper/threadedregions/TickRegionScheduler.java
+@@ -243,17 +243,6 @@ public final class TickRegionScheduler {
+             this.tickSchedule = new Schedule(firstStart == SchedulerThreadPool.DEADLINE_NOT_SET ? firstStart : firstStart - TIME_BETWEEN_TICKS);
+         }
+ 
+-        @Override
+-        @Deprecated(forRemoval = true)
+-        public void finalize() throws Throwable {
+-            try {
+-                Level.WORLD_DATA_POOL.dropRegionWorldData(this.region.region);
+-            }catch (Exception e){
+-                e.printStackTrace();
+-            }
+-            super.finalize();
+-        }
+-
+         /**
+          * Subclasses should call this instead of {@link ca.spottedleaf.concurrentutil.scheduler.SchedulerThreadPool.SchedulableTick#setScheduledStart(long)}
+          * so that the tick schedule and scheduled start remain synchronised
+diff --git a/src/main/java/me/earthme/molia/pool/WorldDataPool.java b/src/main/java/me/earthme/molia/pool/WorldDataPool.java
+index 50bdef8026fb069d13ce1fc8ac3ea84d9e5ebc35..7c0cff02db933bed95c45848dc64c4cf3f9bd3e0 100644
+--- a/src/main/java/me/earthme/molia/pool/WorldDataPool.java
++++ b/src/main/java/me/earthme/molia/pool/WorldDataPool.java
+@@ -65,6 +65,7 @@ public class WorldDataPool {
+         return ret;
+     }
+ 
++    //Should not be called
+     public void dropRegionWorldData(ThreadedRegionizer.ThreadedRegion<?, ?> target){
+         this.accessLock.writeLock().lock();
+         try {
