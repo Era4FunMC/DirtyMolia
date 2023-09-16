@@ -1,0 +1,52 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: wangxyper <wangxyper@163.com>
+Date: Sat, 16 Sep 2023 19:49:40 +0800
+Subject: [PATCH] Check current region access before returning current world
+ data
+
+
+diff --git a/src/main/java/me/earthme/molia/pool/WorldDataPool.java b/src/main/java/me/earthme/molia/pool/WorldDataPool.java
+index 7c0cff02db933bed95c45848dc64c4cf3f9bd3e0..a826c49b4eae51aa81e6f8fb93a2b0f7178c527a 100644
+--- a/src/main/java/me/earthme/molia/pool/WorldDataPool.java
++++ b/src/main/java/me/earthme/molia/pool/WorldDataPool.java
+@@ -2,9 +2,11 @@ package me.earthme.molia.pool;
+ 
+ import io.papermc.paper.threadedregions.RegionizedWorldData;
+ import io.papermc.paper.threadedregions.ThreadedRegionizer;
++import io.papermc.paper.util.TickThread;
+ import it.unimi.dsi.fastutil.objects.Reference2ObjectLinkedOpenHashMap;
+ import me.earthme.molia.util.SchedulerUtil;
+ import net.minecraft.core.BlockPos;
++import net.minecraft.server.level.ServerLevel;
+ import net.minecraft.world.entity.Entity;
+ import net.minecraft.world.level.Level;
+ import org.bukkit.Location;
+@@ -24,12 +26,18 @@ public class WorldDataPool {
+ 
+     public RegionizedWorldData getDataAnyThread(Entity ent){
+         final RegionizedWorldData got = ent.level().getCurrentWorldData();
+-        return got == null ? getDataOffTickThread(ent.getBukkitEntity().getLocation()) : got; //Skip it if we got the current world data
++        if (got != null && TickThread.isTickThreadFor(ent)){
++            return got;
++        }
++        return getDataOffTickThread(ent.getBukkitEntity().getLocation()); //Skip it if we got the current world data
+     }
+ 
+     public RegionizedWorldData getDataAnyThread(Level level, BlockPos pos){
+         final RegionizedWorldData got = level.getCurrentWorldData();
+-        return got == null ? getDataOffTickThread(new Location(level.getWorld(),pos.getX(),0,pos.getZ())) : got; //Skip it if we got the current world data
++        if (got != null && TickThread.isTickThreadFor((ServerLevel) level,pos.getX() >> 4,pos.getZ() >>4)){
++            return got;
++        }
++        return getDataOffTickThread(new Location(level.getWorld(),pos.getX(),0,pos.getZ())); //Skip it if we got the current world data
+     }
+ 
+     @Nullable
+@@ -66,6 +74,7 @@ public class WorldDataPool {
+     }
+ 
+     //Should not be called
++    @Deprecated
+     public void dropRegionWorldData(ThreadedRegionizer.ThreadedRegion<?, ?> target){
+         this.accessLock.writeLock().lock();
+         try {
