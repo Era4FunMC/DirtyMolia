@@ -1,0 +1,20 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: wangxyper <wangxyper@163.com>
+Date: Sun, 17 Sep 2023 13:51:03 +0800
+Subject: [PATCH] Block and return to target region thread when getting chunk
+ on scheduler runner thread
+
+
+diff --git a/src/main/java/net/minecraft/server/level/ServerChunkCache.java b/src/main/java/net/minecraft/server/level/ServerChunkCache.java
+index 80f12f1b67bb4f2e867d5ad6aec33d7d0d4f223f..a37dc5608791ada880458510f229db74ee04f889 100644
+--- a/src/main/java/net/minecraft/server/level/ServerChunkCache.java
++++ b/src/main/java/net/minecraft/server/level/ServerChunkCache.java
+@@ -216,7 +216,7 @@ public class ServerChunkCache extends ChunkSource {
+     @Override
+     public ChunkAccess getChunk(int x, int z, ChunkStatus leastStatus, boolean create) {
+         final int x1 = x; final int z1 = z; // Paper - conflict on variable change
+-        if (!io.papermc.paper.util.TickThread.isTickThread()) { // Paper - rewrite chunk system
++        if (!io.papermc.paper.util.TickThread.isTickThreadFor(this.level,x,z)) { // Paper - rewrite chunk system
+             return (ChunkAccess) CompletableFuture.supplyAsync(() -> {
+                 return this.getChunk(x, z, leastStatus, create);
+             }, SchedulerUtil.regionSchedulerAsExecutor(this.level.getWorld(),x,z)).join();
