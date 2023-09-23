@@ -1,0 +1,37 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: wangxyper <wangxyper@163.com>
+Date: Sat, 23 Sep 2023 20:21:23 +0800
+Subject: [PATCH] Correct hook position to prevent possible memory leaking
+ issue
+
+
+diff --git a/src/main/java/io/papermc/paper/threadedregions/RegionizedData.java b/src/main/java/io/papermc/paper/threadedregions/RegionizedData.java
+index 4f0bc6dbb313b211692fd7136b3376858ba4a8fd..3e42d302a128144c974f7b926e0adb7e706171ca 100644
+--- a/src/main/java/io/papermc/paper/threadedregions/RegionizedData.java
++++ b/src/main/java/io/papermc/paper/threadedregions/RegionizedData.java
+@@ -155,9 +155,9 @@ public final class RegionizedData<T> {
+         }
+ 
+         final T ret = region.getData().getOrCreateRegionizedData(this);
+-        if (ret instanceof RegionizedWorldData data){
++        /*if (ret instanceof RegionizedWorldData data){
+             Level.WORLD_DATA_POOL.onCreateRegionWorldData(region, data);
+-        }
++        }*/
+         return ret;
+     }
+ 
+diff --git a/src/main/java/io/papermc/paper/threadedregions/TickRegions.java b/src/main/java/io/papermc/paper/threadedregions/TickRegions.java
+index 55b3cfb16effa58aee5193003403548a0e574675..4ace63a059e85093607587a3d465ce2d82d4aeed 100644
+--- a/src/main/java/io/papermc/paper/threadedregions/TickRegions.java
++++ b/src/main/java/io/papermc/paper/threadedregions/TickRegions.java
+@@ -239,6 +239,9 @@ public final class TickRegions implements ThreadedRegionizer.RegionCallbacks<Tic
+             ret = regionizedData.createNewValue();
+             this.regionizedData.put(regionizedData, ret);
+ 
++            if (ret instanceof RegionizedWorldData data){
++                Level.WORLD_DATA_POOL.onCreateRegionWorldData(region,data);
++            }
+             return ret;
+         }
+ 
