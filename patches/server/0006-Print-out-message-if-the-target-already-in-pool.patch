@@ -1,0 +1,37 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: wangxyper <wangxyper@163.com>
+Date: Sat, 23 Sep 2023 18:03:17 +0800
+Subject: [PATCH] Print out message if the target already in pool
+
+
+diff --git a/src/main/java/me/earthme/molia/pool/WorldDataPool.java b/src/main/java/me/earthme/molia/pool/WorldDataPool.java
+index a826c49b4eae51aa81e6f8fb93a2b0f7178c527a..e81da04c0b30af12daa8c00a8741dadaa46449b1 100644
+--- a/src/main/java/me/earthme/molia/pool/WorldDataPool.java
++++ b/src/main/java/me/earthme/molia/pool/WorldDataPool.java
+@@ -9,6 +9,8 @@ import net.minecraft.core.BlockPos;
+ import net.minecraft.server.level.ServerLevel;
+ import net.minecraft.world.entity.Entity;
+ import net.minecraft.world.level.Level;
++import org.apache.logging.log4j.LogManager;
++import org.apache.logging.log4j.Logger;
+ import org.bukkit.Location;
+ import org.bukkit.craftbukkit.CraftWorld;
+ import org.jetbrains.annotations.NotNull;
+@@ -20,6 +22,7 @@ import java.util.concurrent.locks.ReadWriteLock;
+ import java.util.concurrent.locks.ReentrantReadWriteLock;
+ 
+ public class WorldDataPool {
++    private static final Logger logger = LogManager.getLogger();
+     private final Map<ThreadedRegionizer.ThreadedRegion<?,?>, RegionizedWorldData> regionizer2Data = new Reference2ObjectLinkedOpenHashMap<>();
+     private final ReadWriteLock accessLock = new ReentrantReadWriteLock();
+     //private final SWMRHashTable<ThreadedRegionizer.ThreadedRegion<TickRegions.TickRegionData, TickRegions.TickRegionSectionData>, RegionizedWorldData> regionizer2Data = new SWMRHashTable<>();
+@@ -93,6 +96,9 @@ public class WorldDataPool {
+         try {
+             if (!this.regionizer2Data.containsKey(region)){
+                 this.regionizer2Data.put(region,data);
++            }else{
++                //Print out message if the target region was already in the region2data map
++                logger.warn("Duplicate region adding for region {} !",region);
+             }
+         }finally {
+             this.accessLock.writeLock().unlock();
