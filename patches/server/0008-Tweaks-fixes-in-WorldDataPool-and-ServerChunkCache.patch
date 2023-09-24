@@ -1,0 +1,54 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: wangxyper <wangxyper@163.com>
+Date: Sun, 24 Sep 2023 19:26:25 +0800
+Subject: [PATCH] Tweaks & fixes in WorldDataPool and ServerChunkCache
+
+
+diff --git a/src/main/java/me/earthme/molia/pool/WorldDataPool.java b/src/main/java/me/earthme/molia/pool/WorldDataPool.java
+index e81da04c0b30af12daa8c00a8741dadaa46449b1..6992c731d0a3135351e976035d7fbd5cee8cacdf 100644
+--- a/src/main/java/me/earthme/molia/pool/WorldDataPool.java
++++ b/src/main/java/me/earthme/molia/pool/WorldDataPool.java
+@@ -30,17 +30,17 @@ public class WorldDataPool {
+     public RegionizedWorldData getDataAnyThread(Entity ent){
+         final RegionizedWorldData got = ent.level().getCurrentWorldData();
+         if (got != null && TickThread.isTickThreadFor(ent)){
+-            return got;
++            return got;//Skip it if we got the current world data
+         }
+-        return getDataOffTickThread(ent.getBukkitEntity().getLocation()); //Skip it if we got the current world data
++        return getDataOffTickThread(ent.getBukkitEntity().getLocation());
+     }
+ 
+     public RegionizedWorldData getDataAnyThread(Level level, BlockPos pos){
+         final RegionizedWorldData got = level.getCurrentWorldData();
+         if (got != null && TickThread.isTickThreadFor((ServerLevel) level,pos.getX() >> 4,pos.getZ() >>4)){
+-            return got;
++            return got;//Skip it if we got the current world data
+         }
+-        return getDataOffTickThread(new Location(level.getWorld(),pos.getX(),0,pos.getZ())); //Skip it if we got the current world data
++        return getDataOffTickThread(new Location(level.getWorld(),pos.getX(),0,pos.getZ()));
+     }
+ 
+     @Nullable
+diff --git a/src/main/java/net/minecraft/server/level/ServerChunkCache.java b/src/main/java/net/minecraft/server/level/ServerChunkCache.java
+index a37dc5608791ada880458510f229db74ee04f889..e509d5bc2fdc1030bf97f190c9f50fa1dfbb84ad 100644
+--- a/src/main/java/net/minecraft/server/level/ServerChunkCache.java
++++ b/src/main/java/net/minecraft/server/level/ServerChunkCache.java
+@@ -18,6 +18,8 @@ import java.util.function.BooleanSupplier;
+ import java.util.function.Consumer;
+ import java.util.function.Supplier;
+ import javax.annotation.Nullable;
++
++import me.earthme.molia.thread.CraftSchedulerRunner;
+ import net.minecraft.Util;
+ import net.minecraft.core.BlockPos;
+ import net.minecraft.core.SectionPos;
+@@ -216,7 +218,7 @@ public class ServerChunkCache extends ChunkSource {
+     @Override
+     public ChunkAccess getChunk(int x, int z, ChunkStatus leastStatus, boolean create) {
+         final int x1 = x; final int z1 = z; // Paper - conflict on variable change
+-        if (!io.papermc.paper.util.TickThread.isTickThreadFor(this.level,x,z)) { // Paper - rewrite chunk system
++        if (!io.papermc.paper.util.TickThread.isTickThreadFor(this.level,x,z) || CraftSchedulerRunner.isRunnerThread()) { // Paper - rewrite chunk system
+             return (ChunkAccess) CompletableFuture.supplyAsync(() -> {
+                 return this.getChunk(x, z, leastStatus, create);
+             }, SchedulerUtil.regionSchedulerAsExecutor(this.level.getWorld(),x,z)).join();
