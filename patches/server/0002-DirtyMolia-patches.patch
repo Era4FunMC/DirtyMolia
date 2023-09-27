@@ -693,10 +693,10 @@ index cb453dd110fc37fae75257a4576512126207763e..35d356163ded2bac903dd4dd7c9b7e79
              return true;
          }
 diff --git a/src/main/java/me/earthme/molia/MoliaConfig.java b/src/main/java/me/earthme/molia/MoliaConfig.java
-index 405bc9c2ea13e8b70c70f52c1fc81336b4dd432e..9f32146f384cb5014d3b092c419dbfc0b6d9f07a 100644
+index b989377fb0f0f57ea9e114ed44818150c71822f2..2dadbe533261d0853c8a32d405ee68f72f8662ba 100644
 --- a/src/main/java/me/earthme/molia/MoliaConfig.java
 +++ b/src/main/java/me/earthme/molia/MoliaConfig.java
-@@ -39,7 +39,7 @@ public class MoliaConfig {
+@@ -40,7 +40,7 @@ public class MoliaConfig {
      public static boolean fakeplayerResident = false;
      public static List<String> unableFakeplayerNames = Lists.newArrayList();
      public static int fakeplayerLimit = 10;
