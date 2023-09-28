@@ -1,0 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: wangxyper <wangxyper@163.com>
+Date: Thu, 28 Sep 2023 20:20:31 +0800
+Subject: [PATCH] Fix some async catcher issues
+
+
+diff --git a/src/main/java/io/papermc/paper/threadedregions/RegionizedServer.java b/src/main/java/io/papermc/paper/threadedregions/RegionizedServer.java
+index 8546d2ab85e81c0625d86c04165c0f9d902189ab..c0c0bdc398378f8d8c56c8c8e2879145696db20d 100644
+--- a/src/main/java/io/papermc/paper/threadedregions/RegionizedServer.java
++++ b/src/main/java/io/papermc/paper/threadedregions/RegionizedServer.java
+@@ -100,7 +100,7 @@ public final class RegionizedServer {
+ 
+     public static boolean isGlobalTickThread() {
+         //DirtyMolia start - Drop global region check
+-        return INSTANCE.tickHandle == TickRegionScheduler.getCurrentTickingTask() || CraftSchedulerRunner.isRunnerThread() || TickThread.isTickThread();
++        return INSTANCE.tickHandle == TickRegionScheduler.getCurrentTickingTask() || CraftSchedulerRunner.isRunnerThread();
+         //return true;
+         //Molia end
+     }
+diff --git a/src/main/java/net/minecraft/server/level/ServerChunkCache.java b/src/main/java/net/minecraft/server/level/ServerChunkCache.java
+index e509d5bc2fdc1030bf97f190c9f50fa1dfbb84ad..293cb9e0ab63be0d71937294aad1d65824cc6bb6 100644
+--- a/src/main/java/net/minecraft/server/level/ServerChunkCache.java
++++ b/src/main/java/net/minecraft/server/level/ServerChunkCache.java
+@@ -218,8 +218,8 @@ public class ServerChunkCache extends ChunkSource {
+     @Override
+     public ChunkAccess getChunk(int x, int z, ChunkStatus leastStatus, boolean create) {
+         final int x1 = x; final int z1 = z; // Paper - conflict on variable change
+-        if (!io.papermc.paper.util.TickThread.isTickThreadFor(this.level,x,z) || CraftSchedulerRunner.isRunnerThread()) { // Paper - rewrite chunk system
+-            return (ChunkAccess) CompletableFuture.supplyAsync(() -> {
++        if (!io.papermc.paper.util.TickThread.isTickThread() || CraftSchedulerRunner.isRunnerThread()) { // Paper - rewrite chunk system
++            return CompletableFuture.supplyAsync(() -> {
+                 return this.getChunk(x, z, leastStatus, create);
+             }, SchedulerUtil.regionSchedulerAsExecutor(this.level.getWorld(),x,z)).join();
+         } else {
