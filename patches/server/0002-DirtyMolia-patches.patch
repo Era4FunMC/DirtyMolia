@@ -693,10 +693,10 @@ index cb453dd110fc37fae75257a4576512126207763e..35d356163ded2bac903dd4dd7c9b7e79
              return true;
          }
 diff --git a/src/main/java/me/earthme/molia/MoliaConfig.java b/src/main/java/me/earthme/molia/MoliaConfig.java
-index b989377fb0f0f57ea9e114ed44818150c71822f2..2dadbe533261d0853c8a32d405ee68f72f8662ba 100644
+index cde3d3b0cf541cace5c3afeb1467c5cb6ab61824..bbbc5849f5f071ca9f56886f0b0b0087984d6d70 100644
 --- a/src/main/java/me/earthme/molia/MoliaConfig.java
 +++ b/src/main/java/me/earthme/molia/MoliaConfig.java
-@@ -40,7 +40,7 @@ public class MoliaConfig {
+@@ -51,7 +51,7 @@ public class MoliaConfig {
      public static boolean fakeplayerResident = false;
      public static List<String> unableFakeplayerNames = Lists.newArrayList();
      public static int fakeplayerLimit = 10;
@@ -1273,7 +1273,7 @@ index af35fd63b090aa3d89bc60cb9cb7694b5f502681..80f12f1b67bb4f2e867d5ad6aec33d7d
              // Paper start - optimise for loaded chunks
              LevelChunk ifLoaded = this.getChunkAtIfLoadedMainThread(x, z);
 diff --git a/src/main/java/net/minecraft/server/level/ServerLevel.java b/src/main/java/net/minecraft/server/level/ServerLevel.java
-index 56509902b52a58c6c3b7c304dc2d01a8ff3ce211..1d544651258a933ed065b4a6fbbaf8a88a055fcd 100644
+index 338baba6a02c3debee4e2c7f2b34838ce6c0c76c..c1322e63d44c854d5a155c00853f2807a321f0bc 100644
 --- a/src/main/java/net/minecraft/server/level/ServerLevel.java
 +++ b/src/main/java/net/minecraft/server/level/ServerLevel.java
 @@ -6,6 +6,7 @@ import com.google.common.collect.Lists;
@@ -1284,7 +1284,7 @@ index 56509902b52a58c6c3b7c304dc2d01a8ff3ce211..1d544651258a933ed065b4a6fbbaf8a8
  import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
  import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
  import it.unimi.dsi.fastutil.longs.LongSet;
-@@ -1729,8 +1730,8 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -1730,8 +1731,8 @@ public class ServerLevel extends Level implements WorldGenLevel {
          } else {
              if (entity instanceof net.minecraft.world.entity.item.ItemEntity itemEntity && itemEntity.getItem().isEmpty()) return false; // Paper - Prevent empty items from being added
              // Paper start - capture all item additions to the world
@@ -1295,7 +1295,7 @@ index 56509902b52a58c6c3b7c304dc2d01a8ff3ce211..1d544651258a933ed065b4a6fbbaf8a8
                  return true;
              }
              // Paper end
-@@ -1887,25 +1888,30 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -1888,25 +1889,30 @@ public class ServerLevel extends Level implements WorldGenLevel {
  
          if (Shapes.joinIsNotEmpty(voxelshape, voxelshape1, BooleanOp.NOT_SAME)) {
              List<PathNavigation> list = new ObjectArrayList();
@@ -1343,7 +1343,7 @@ index 56509902b52a58c6c3b7c304dc2d01a8ff3ce211..1d544651258a933ed065b4a6fbbaf8a8
                  }
              }
  
-@@ -1928,23 +1934,23 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -1929,23 +1935,23 @@ public class ServerLevel extends Level implements WorldGenLevel {
  
      @Override
      public void updateNeighborsAt(BlockPos pos, Block sourceBlock) {
@@ -1372,7 +1372,7 @@ index 56509902b52a58c6c3b7c304dc2d01a8ff3ce211..1d544651258a933ed065b4a6fbbaf8a8
      }
  
      @Override
-@@ -1990,7 +1996,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -1991,7 +1997,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
  
      @Override
      public void blockEvent(BlockPos pos, Block block, int type, int data) {
@@ -1381,7 +1381,7 @@ index 56509902b52a58c6c3b7c304dc2d01a8ff3ce211..1d544651258a933ed065b4a6fbbaf8a8
      }
  
      private void runBlockEvents() {
-@@ -2561,7 +2567,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -2562,7 +2568,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
      public void blockUpdated(BlockPos pos, Block block) {
          if (!this.isDebug()) {
              // CraftBukkit start
@@ -1390,7 +1390,7 @@ index 56509902b52a58c6c3b7c304dc2d01a8ff3ce211..1d544651258a933ed065b4a6fbbaf8a8
                  return;
              }
              // CraftBukkit end
-@@ -2766,11 +2772,11 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -2767,11 +2773,11 @@ public class ServerLevel extends Level implements WorldGenLevel {
  
          public void onTickingStart(Entity entity) {
              if (entity instanceof net.minecraft.world.entity.Marker && !paperConfig().entities.markers.tick) return; // Paper - Configurable marker ticking
@@ -1404,7 +1404,7 @@ index 56509902b52a58c6c3b7c304dc2d01a8ff3ce211..1d544651258a933ed065b4a6fbbaf8a8
              // Paper start - Reset pearls when they stop being ticked
              if (paperConfig().fixes.disableUnloadedChunkEnderpearlExploit && entity instanceof net.minecraft.world.entity.projectile.ThrownEnderpearl pearl) {
                  pearl.cachedOwner = null;
-@@ -2798,7 +2804,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -2799,7 +2805,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
                      Util.logAndPauseIfInIde("onTrackingStart called during navigation iteration", new IllegalStateException("onTrackingStart called during navigation iteration"));
                  }
  
@@ -1413,7 +1413,7 @@ index 56509902b52a58c6c3b7c304dc2d01a8ff3ce211..1d544651258a933ed065b4a6fbbaf8a8
              }
  
              if (entity instanceof EnderDragon) {
-@@ -2897,7 +2903,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
+@@ -2898,7 +2904,7 @@ public class ServerLevel extends Level implements WorldGenLevel {
                      Util.logAndPauseIfInIde("onTrackingStart called during navigation iteration", new IllegalStateException("onTrackingStart called during navigation iteration"));
                  }
  
