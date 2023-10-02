@@ -1,0 +1,260 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: wangxyper <wangxyper@163.com>
+Date: Mon, 2 Oct 2023 19:34:52 +0800
+Subject: [PATCH] Try fixing memory leaking issue in worlddatapool
+
+
+diff --git a/src/main/java/io/papermc/paper/threadedregions/TickRegions.java b/src/main/java/io/papermc/paper/threadedregions/TickRegions.java
+index 4ace63a059e85093607587a3d465ce2d82d4aeed..e979d745946ae6eebc2259ca339d8b99235e6ea9 100644
+--- a/src/main/java/io/papermc/paper/threadedregions/TickRegions.java
++++ b/src/main/java/io/papermc/paper/threadedregions/TickRegions.java
+@@ -22,6 +22,8 @@ import java.util.Iterator;
+ import java.util.concurrent.TimeUnit;
+ import java.util.concurrent.atomic.AtomicInteger;
+ import java.util.concurrent.atomic.AtomicLong;
++import java.util.concurrent.locks.ReadWriteLock;
++import java.util.concurrent.locks.ReentrantReadWriteLock;
+ import java.util.function.BooleanSupplier;
+ 
+ import static org.bukkit.craftbukkit.scheduler.CraftScheduler.MINECRAFT;
+@@ -145,9 +147,9 @@ public final class TickRegions implements ThreadedRegionizer.RegionCallbacks<Tic
+                 TickRegionScheduler.getCurrentRegion().getData().getRegionStats().updateFrom(TickRegionScheduler.getCurrentRegionizedWorldData());
+                 return;
+             }
+-            final ThreadedRegionizer.ThreadedRegion<TickRegions.TickRegionData, TickRegions.TickRegionSectionData> got = ((ServerLevel) chunk.level).regioniser.getRegionAtUnsynchronised(chunk.getPos().x,chunk.getPos().z);
++            final ThreadedRegionizer.ThreadedRegion<TickRegions.TickRegionData, TickRegions.TickRegionSectionData> got = ((ServerLevel) chunk.level).regioniser.getRegionAtUnsynchronised(chunk.getPos().getMiddleBlockX(),chunk.getPos().getMiddleBlockZ());
+             if (got != null) {
+-                got.getData().getRegionStats().updateFrom(Level.WORLD_DATA_POOL.getDataAnyThread(chunk.level,new BlockPos(chunk.getPos().getMiddleBlockX(),0,chunk.getPos().z)));
++                got.getData().getRegionStats().updateFrom(Level.WORLD_DATA_POOL.getDataAnyThread(chunk.level,new BlockPos(chunk.getPos().getMiddleBlockX(),0,chunk.getPos().getMiddleBlockZ())));
+             }else{
+                 Bukkit.getRegionScheduler().execute(MINECRAFT,chunk.level.getWorld(),chunk.getPos().x,chunk.getPos().z,()->{
+                     TickRegionScheduler.getCurrentRegion().getData().getRegionStats().updateFrom(TickRegionScheduler.getCurrentRegionizedWorldData());
+@@ -183,6 +185,7 @@ public final class TickRegions implements ThreadedRegionizer.RegionCallbacks<Tic
+ 
+         // generic regionised data
+         private final Reference2ReferenceOpenHashMap<RegionizedData<?>, Object> regionizedData = new Reference2ReferenceOpenHashMap<>();
++        private final ReadWriteLock accessLock = new ReentrantReadWriteLock();
+ 
+         // tick data
+         private ConcreteRegionTickHandle tickHandle = new ConcreteRegionTickHandle(this, SchedulerThreadPool.DEADLINE_NOT_SET);
+@@ -225,24 +228,34 @@ public final class TickRegions implements ThreadedRegionizer.RegionCallbacks<Tic
+             return this.holderManagerRegionData;
+         }
+ 
+-        <T> T getRegionizedData(final RegionizedData<T> regionizedData) {
+-            return (T)this.regionizedData.get(regionizedData);
++        public <T> T getRegionizedData(final RegionizedData<T> regionizedData) {
++            this.accessLock.readLock().lock();
++            try {
++                return (T)this.regionizedData.get(regionizedData);
++            }finally {
++                this.accessLock.readLock().unlock();
++            }
+         }
+ 
+         <T> T getOrCreateRegionizedData(final RegionizedData<T> regionizedData) {
+-            T ret = (T)this.regionizedData.get(regionizedData);
++            this.accessLock.writeLock().lock();
++            try {
++                T ret = (T)this.regionizedData.get(regionizedData);
+ 
+-            if (ret != null) {
+-                return ret;
+-            }
++                if (ret != null) {
++                    return ret;
++                }
+ 
+-            ret = regionizedData.createNewValue();
+-            this.regionizedData.put(regionizedData, ret);
++                ret = regionizedData.createNewValue();
++                this.regionizedData.put(regionizedData, ret);
+ 
+-            if (ret instanceof RegionizedWorldData data){
++            /*if (ret instanceof RegionizedWorldData data){
+                 Level.WORLD_DATA_POOL.onCreateRegionWorldData(region,data);
++            }*/
++                return ret;
++            }finally {
++                this.accessLock.writeLock().unlock();
+             }
+-            return ret;
+         }
+ 
+         @Override
+@@ -260,30 +273,35 @@ public final class TickRegions implements ThreadedRegionizer.RegionCallbacks<Tic
+             }
+ 
+             // generic regionised data
+-            for (final Iterator<Reference2ReferenceMap.Entry<RegionizedData<?>, Object>> dataIterator = this.regionizedData.reference2ReferenceEntrySet().fastIterator();
+-                 dataIterator.hasNext();) {
+-                final Reference2ReferenceMap.Entry<RegionizedData<?>, Object> regionDataEntry = dataIterator.next();
+-                final RegionizedData<?> data = regionDataEntry.getKey();
+-                final Object from = regionDataEntry.getValue();
++            this.accessLock.readLock().lock();
++            try {
++                for (final Iterator<Reference2ReferenceMap.Entry<RegionizedData<?>, Object>> dataIterator = this.regionizedData.reference2ReferenceEntrySet().fastIterator();
++                     dataIterator.hasNext();) {
++                    final Reference2ReferenceMap.Entry<RegionizedData<?>, Object> regionDataEntry = dataIterator.next();
++                    final RegionizedData<?> data = regionDataEntry.getKey();
++                    final Object from = regionDataEntry.getValue();
+ 
+-                final ReferenceOpenHashSet<Object> dataSet = new ReferenceOpenHashSet<>(regions.size(), 0.75f);
++                    final ReferenceOpenHashSet<Object> dataSet = new ReferenceOpenHashSet<>(regions.size(), 0.75f);
+ 
+-                for (final ThreadedRegionizer.ThreadedRegion<TickRegionData, TickRegionSectionData> region : regions) {
+-                    dataSet.add(region.getData().getOrCreateRegionizedData(data));
+-                }
++                    for (final ThreadedRegionizer.ThreadedRegion<TickRegionData, TickRegionSectionData> region : regions) {
++                        dataSet.add(region.getData().getOrCreateRegionizedData(data));
++                    }
+ 
+-                final Long2ReferenceOpenHashMap<Object> regionToData = new Long2ReferenceOpenHashMap<>(into.size(), 0.75f);
++                    final Long2ReferenceOpenHashMap<Object> regionToData = new Long2ReferenceOpenHashMap<>(into.size(), 0.75f);
+ 
+-                for (final Iterator<Long2ReferenceMap.Entry<ThreadedRegionizer.ThreadedRegion<TickRegionData, TickRegionSectionData>>> regionIterator = into.long2ReferenceEntrySet().fastIterator();
+-                     regionIterator.hasNext();) {
+-                    final Long2ReferenceMap.Entry<ThreadedRegionizer.ThreadedRegion<TickRegionData, TickRegionSectionData>> entry = regionIterator.next();
+-                    final ThreadedRegionizer.ThreadedRegion<TickRegionData, TickRegionSectionData> region = entry.getValue();
+-                    final Object to = region.getData().getOrCreateRegionizedData(data);
++                    for (final Iterator<Long2ReferenceMap.Entry<ThreadedRegionizer.ThreadedRegion<TickRegionData, TickRegionSectionData>>> regionIterator = into.long2ReferenceEntrySet().fastIterator();
++                         regionIterator.hasNext();) {
++                        final Long2ReferenceMap.Entry<ThreadedRegionizer.ThreadedRegion<TickRegionData, TickRegionSectionData>> entry = regionIterator.next();
++                        final ThreadedRegionizer.ThreadedRegion<TickRegionData, TickRegionSectionData> region = entry.getValue();
++                        final Object to = region.getData().getOrCreateRegionizedData(data);
+ 
+-                    regionToData.put(entry.getLongKey(), to);
+-                }
++                        regionToData.put(entry.getLongKey(), to);
++                    }
+ 
+-                ((RegionizedData<Object>)data).getCallback().split(from, shift, regionToData, dataSet);
++                    ((RegionizedData<Object>)data).getCallback().split(from, shift, regionToData, dataSet);
++                }
++            }finally {
++                this.accessLock.readLock().unlock();
+             }
+ 
+             // chunk holder manager data
+@@ -327,15 +345,20 @@ public final class TickRegions implements ThreadedRegionizer.RegionCallbacks<Tic
+ 
+             // generic regionised data
+             final long fromTickOffset = currentTickTo - currentTickFrom; // see merge jd
+-            for (final Iterator<Reference2ReferenceMap.Entry<RegionizedData<?>, Object>> iterator = this.regionizedData.reference2ReferenceEntrySet().fastIterator(); iterator.hasNext();) {
+-                final Reference2ReferenceMap.Entry<RegionizedData<?>, Object> entry = iterator.next();
+-                final RegionizedData<?> regionizedData = entry.getKey();
+-                final Object from = entry.getValue();
+-                final Object to = into.getData().getOrCreateRegionizedData(regionizedData);
++            this.accessLock.readLock().lock();
++            try {
++                for (final Iterator<Reference2ReferenceMap.Entry<RegionizedData<?>, Object>> iterator = this.regionizedData.reference2ReferenceEntrySet().fastIterator(); iterator.hasNext();) {
++                    final Reference2ReferenceMap.Entry<RegionizedData<?>, Object> entry = iterator.next();
++                    final RegionizedData<?> regionizedData = entry.getKey();
++                    final Object from = entry.getValue();
++                    final Object to = into.getData().getOrCreateRegionizedData(regionizedData);
++
++                    ((RegionizedData<Object>)regionizedData).getCallback().merge(from, to, fromTickOffset);
++                }
+ 
+-                ((RegionizedData<Object>)regionizedData).getCallback().merge(from, to, fromTickOffset);
++            }finally {
++                this.accessLock.readLock().unlock();
+             }
+-
+             // chunk holder manager data
+             this.holderManagerRegionData.merge(into.getData().holderManagerRegionData, fromTickOffset);
+ 
+diff --git a/src/main/java/me/earthme/molia/pool/WorldDataPool.java b/src/main/java/me/earthme/molia/pool/WorldDataPool.java
+index 6992c731d0a3135351e976035d7fbd5cee8cacdf..00c5997a782b1e6975b9c9911ec4231cbad201a6 100644
+--- a/src/main/java/me/earthme/molia/pool/WorldDataPool.java
++++ b/src/main/java/me/earthme/molia/pool/WorldDataPool.java
+@@ -2,6 +2,7 @@ package me.earthme.molia.pool;
+ 
+ import io.papermc.paper.threadedregions.RegionizedWorldData;
+ import io.papermc.paper.threadedregions.ThreadedRegionizer;
++import io.papermc.paper.threadedregions.TickRegions;
+ import io.papermc.paper.util.TickThread;
+ import it.unimi.dsi.fastutil.objects.Reference2ObjectLinkedOpenHashMap;
+ import me.earthme.molia.util.SchedulerUtil;
+@@ -22,11 +23,6 @@ import java.util.concurrent.locks.ReadWriteLock;
+ import java.util.concurrent.locks.ReentrantReadWriteLock;
+ 
+ public class WorldDataPool {
+-    private static final Logger logger = LogManager.getLogger();
+-    private final Map<ThreadedRegionizer.ThreadedRegion<?,?>, RegionizedWorldData> regionizer2Data = new Reference2ObjectLinkedOpenHashMap<>();
+-    private final ReadWriteLock accessLock = new ReentrantReadWriteLock();
+-    //private final SWMRHashTable<ThreadedRegionizer.ThreadedRegion<TickRegions.TickRegionData, TickRegions.TickRegionSectionData>, RegionizedWorldData> regionizer2Data = new SWMRHashTable<>();
+-
+     public RegionizedWorldData getDataAnyThread(Entity ent){
+         final RegionizedWorldData got = ent.level().getCurrentWorldData();
+         if (got != null && TickThread.isTickThreadFor(ent)){
+@@ -45,63 +41,22 @@ public class WorldDataPool {
+ 
+     @Nullable
+     public RegionizedWorldData getDataOffTickThread(@NotNull Location location){
+-        ThreadedRegionizer.ThreadedRegion<?, ?> target = ((CraftWorld) location.getWorld()).getHandle().regioniser.getRegionAtUnsynchronised(location.getBlockX() >> 4,location.getBlockZ() >> 4);
++        ThreadedRegionizer.ThreadedRegion<TickRegions.TickRegionData, TickRegions.TickRegionSectionData> target = ((CraftWorld) location.getWorld()).getHandle().regioniser.getRegionAtUnsynchronised(location.getBlockX() >> 4,location.getBlockZ() >> 4);
+         RegionizedWorldData ret;
+ 
+-        this.accessLock.readLock().lock();
+-        try {
+-            ret = this.regionizer2Data.get(target);
+-        }finally {
+-            this.accessLock.readLock().unlock();
+-        }
+-
+-        if (ret != null){
++        if (target.getData() != null && (ret = target.getData().getRegionizedData(target.regioniser.world.worldRegionData)) != null){
+             return ret;
+         }
+ 
+         //If we didn't find any world data,Load the target chunk to find one
+         CompletableFuture.runAsync(()->{
+-            //Do nothing here because the add logic is in another class
++            //Do nothing here
+         }, SchedulerUtil.regionSchedulerAsExecutor(location)).join(); //Run blocking
+ 
+-        //Get the target world data again
+-        this.accessLock.readLock().lock();
+-        try {
+-            ret = this.regionizer2Data.get(target);
+-        }finally {
+-            this.accessLock.readLock().unlock();
+-        }
+-
+-        //Return it anyway
+-        return ret;
+-    }
+-
+-    //Should not be called
+-    @Deprecated
+-    public void dropRegionWorldData(ThreadedRegionizer.ThreadedRegion<?, ?> target){
+-        this.accessLock.writeLock().lock();
+-        try {
+-            if (!this.regionizer2Data.containsKey(target)){
+-                return;
+-            }
+-
+-            this.regionizer2Data.remove(target);
+-        }finally {
+-            this.accessLock.writeLock().unlock();
++        if (target.getData() != null && (ret = target.getData().getRegionizedData(target.regioniser.world.worldRegionData)) != null){
++            return ret;
+         }
+-    }
+ 
+-    public void onCreateRegionWorldData(ThreadedRegionizer.ThreadedRegion<?,?> region, RegionizedWorldData data){
+-        this.accessLock.writeLock().lock();
+-        try {
+-            if (!this.regionizer2Data.containsKey(region)){
+-                this.regionizer2Data.put(region,data);
+-            }else{
+-                //Print out message if the target region was already in the region2data map
+-                logger.warn("Duplicate region adding for region {} !",region);
+-            }
+-        }finally {
+-            this.accessLock.writeLock().unlock();
+-        }
++        return null;
+     }
+ }
