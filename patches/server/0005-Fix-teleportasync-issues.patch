@@ -1,0 +1,98 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: M2ke4U <79621885+MrHua269@users.noreply.github.com>
+Date: Sat, 4 Nov 2023 20:22:12 +0800
+Subject: [PATCH] Fix teleportasync issues
+
+
+diff --git a/src/main/java/io/papermc/paper/threadedregions/RegionizedWorldData.java b/src/main/java/io/papermc/paper/threadedregions/RegionizedWorldData.java
+index 8c28925ccc665d0c73214836df661824924daa60..8cb04539149365b155fa3863d195fb59289a818b 100644
+--- a/src/main/java/io/papermc/paper/threadedregions/RegionizedWorldData.java
++++ b/src/main/java/io/papermc/paper/threadedregions/RegionizedWorldData.java
+@@ -358,6 +358,7 @@ public final class RegionizedWorldData {
+         this.redstoneTime = to;
+     }
+ 
++    public final List<Entity> pendingTeleportationList = new ArrayList<>(); //DirtyMolia
+     // ticking chunks
+     private final IteratorSafeOrderedReferenceSet<LevelChunk> entityTickingChunks = new IteratorSafeOrderedReferenceSet<>();
+     private final IteratorSafeOrderedReferenceSet<LevelChunk> tickingChunks = new IteratorSafeOrderedReferenceSet<>();
+diff --git a/src/main/java/me/earthme/molia/SchedulerUtil.java b/src/main/java/me/earthme/molia/SchedulerUtil.java
+index f0dbc8053869af2867d57389fb8910ea01fa223d..f8c19c85ddc6b3817ef97ed765c33159cb099591 100644
+--- a/src/main/java/me/earthme/molia/SchedulerUtil.java
++++ b/src/main/java/me/earthme/molia/SchedulerUtil.java
+@@ -15,7 +15,7 @@ public class SchedulerUtil {
+     public static final MinecraftInternalPlugin NULL_PLUG = new MinecraftInternalPlugin();
+ 
+     public static Executor regionSchedulerAsExecutor(int chunkX, int chunkZ, ServerLevel level){
+-        return task -> RegionizedServer.getInstance().taskQueue.queueTickTaskQueue(level,chunkX,chunkZ,task);
++        return task -> Bukkit.getRegionScheduler().execute(NULL_PLUG,level.getWorld(),chunkX,chunkZ,task);
+     }
+ 
+     public static Executor regionSchedulerAsExecutor(World world,int x,int z){
+diff --git a/src/main/java/me/earthme/molia/pool/WorldDataPool.java b/src/main/java/me/earthme/molia/pool/WorldDataPool.java
+index da3568ae7c793f75f40652a17802dc91135fd277..8bb2a07fd650defa87d688f18278764f836e587e 100644
+--- a/src/main/java/me/earthme/molia/pool/WorldDataPool.java
++++ b/src/main/java/me/earthme/molia/pool/WorldDataPool.java
+@@ -60,7 +60,7 @@ public class WorldDataPool {
+ 
+     public RegionizedWorldData getDataAnyThread(Entity ent){
+         final RegionizedWorldData got = ent.level().getCurrentWorldData();
+-        return got == null || !TickThread.isTickThreadFor(ent) ? getDataOffTickThread(ent.sectionX,ent.sectionZ, ((ServerLevel) ent.level())) : got; //Skip it if we got the current world data
++        return got == null || !TickThread.isTickThreadFor(ent) ? getDataOffTickThread(ent) : got; //Skip it if we got the current world data
+     }
+ 
+     public RegionizedWorldData getDataAnyThread(Level level, BlockPos pos){
+@@ -78,6 +78,29 @@ public class WorldDataPool {
+         return got == null || !TickThread.isTickThreadFor(((CraftWorld) loc.getWorld()).getHandle(),(int)loc.getX() >> 4,(int)loc.getZ() >> 4) ? getDataOffTickThread((int)loc.getX() >> 4,(int)loc.getZ() >> 4,((CraftWorld) loc.getWorld()).getHandle()) : got; //Skip it if we got the current world data
+     }
+ 
++    public RegionizedWorldData getDataOffTickThread(Entity entity){
++        RegionizedWorldData ret = entity.level().getCurrentWorldData();
++
++        if (ret != null && ret.pendingTeleportationList.contains(entity)){
++            return ret;
++        }
++
++        ThreadedRegionizer.ThreadedRegion<TickRegions.TickRegionData, TickRegions.TickRegionSectionData> target = ((ServerLevel) entity.level()).regioniser.getRegionAtUnsynchronised(entity.sectionX,entity.sectionZ);
++
++        this.accessLock.readLock().lock();
++        try {
++            ret = this.regionizedWorldDataMap.get(target);
++        }finally {
++            this.accessLock.readLock().unlock();
++        }
++
++        if (ret != null){
++            return ret;
++        }
++
++        return CompletableFuture.supplyAsync(((ServerLevel) entity.level())::getCurrentWorldData,SchedulerUtil.regionSchedulerAsExecutor(entity.sectionX,entity.sectionZ,((ServerLevel) entity.level()))).join();
++    }
++
+     @Nullable
+     public RegionizedWorldData getDataOffTickThread(int chunkX,int chunkZ,ServerLevel level){
+         ThreadedRegionizer.ThreadedRegion<TickRegions.TickRegionData, TickRegions.TickRegionSectionData> target = level.regioniser.getRegionAtUnsynchronised(chunkX,chunkZ);
+@@ -94,6 +117,6 @@ public class WorldDataPool {
+             return ret;
+         }
+ 
+-        return CompletableFuture.supplyAsync(target.regioniser.world::getCurrentWorldData,SchedulerUtil.regionSchedulerAsExecutor(chunkX,chunkZ,level)).join();
++        return CompletableFuture.supplyAsync(level::getCurrentWorldData,SchedulerUtil.regionSchedulerAsExecutor(chunkX,chunkZ,level)).join();
+     }
+ }
+diff --git a/src/main/java/net/minecraft/world/entity/Entity.java b/src/main/java/net/minecraft/world/entity/Entity.java
+index 3a7a4a3a6cfa0d469545d72b1241d372b4a5d14e..d33ee3507865a35ec69f652e9c07526085a0604b 100644
+--- a/src/main/java/net/minecraft/world/entity/Entity.java
++++ b/src/main/java/net/minecraft/world/entity/Entity.java
+@@ -3840,9 +3840,10 @@ public abstract class Entity implements Nameable, EntityAccess, CommandSource {
+                     );
+                     List<EntityTreeNode> fullTree = passengerTree.getFullTree();
+                     for (EntityTreeNode node : fullTree) {
++                        node.root.level.getCurrentWorldData().pendingTeleportationList.add(node.root); //DirtyMolia
+                         node.root.placeSingleSync(originWorld, destination, node, teleportFlags);
++                        node.root.level.getCurrentWorldData().pendingTeleportationList.remove(node.root);
+                     }
+-
+                     // restore passenger tree
+                     passengerTree.restore();
+                     passengerTree.adjustRiders(true);
