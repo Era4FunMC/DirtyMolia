@@ -1,0 +1,151 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: M2ke4U <79621885+MrHua269@users.noreply.github.com>
+Date: Sun, 5 Nov 2023 20:50:27 +0800
+Subject: [PATCH] Refactor more calling to WorldDataPool and print out the
+ stack of region threads and scheduler runner thread
+
+
+diff --git a/src/main/java/io/papermc/paper/chunk/system/ChunkSystem.java b/src/main/java/io/papermc/paper/chunk/system/ChunkSystem.java
+index 19349637e4a38e697debe6d18ab8b759ede0359e..64ab1e1e24ffbea37ca65a4fc7c1d6d4f49c0848 100644
+--- a/src/main/java/io/papermc/paper/chunk/system/ChunkSystem.java
++++ b/src/main/java/io/papermc/paper/chunk/system/ChunkSystem.java
+@@ -13,6 +13,7 @@ import net.minecraft.server.level.ServerPlayer;
+ import net.minecraft.server.level.TicketType;
+ import net.minecraft.world.entity.Entity;
+ import net.minecraft.world.level.ChunkPos;
++import net.minecraft.world.level.Level;
+ import net.minecraft.world.level.chunk.ChunkAccess;
+ import net.minecraft.world.level.chunk.ChunkStatus;
+ import net.minecraft.world.level.chunk.LevelChunk;
+@@ -110,31 +111,31 @@ public final class ChunkSystem {
+     public static void onChunkBorder(final LevelChunk chunk, final ChunkHolder holder) {
+         chunk.playerChunk = holder;
+         chunk.chunkStatus = net.minecraft.server.level.FullChunkStatus.FULL;
+-        chunk.level.getCurrentWorldData().addChunk(chunk); // Folia - region threading
++        Level.WORLD_DATA_POOL.getDataAnyThread(chunk.level,chunk.locX,chunk.locZ).addChunk(chunk); // Folia - region threading
+     }
+ 
+     public static void onChunkNotBorder(final LevelChunk chunk, final ChunkHolder holder) {
+         chunk.chunkStatus = net.minecraft.server.level.FullChunkStatus.INACCESSIBLE;
+-        chunk.level.getCurrentWorldData().removeChunk(chunk); // Folia - region threading
++        Level.WORLD_DATA_POOL.getDataAnyThread(chunk.level,chunk.locX,chunk.locZ).removeChunk(chunk); // Folia - region threading
+     }
+ 
+     public static void onChunkTicking(final LevelChunk chunk, final ChunkHolder holder) {
+-        chunk.level.getCurrentWorldData().addTickingChunk(chunk); // Folia - region threading
++        Level.WORLD_DATA_POOL.getDataAnyThread(chunk.level,chunk.locX,chunk.locZ).addTickingChunk(chunk); // Folia - region threading
+         chunk.chunkStatus = net.minecraft.server.level.FullChunkStatus.BLOCK_TICKING;
+     }
+ 
+     public static void onChunkNotTicking(final LevelChunk chunk, final ChunkHolder holder) {
+-        chunk.level.getCurrentWorldData().removeTickingChunk(chunk); // Folia - region threading
++        Level.WORLD_DATA_POOL.getDataAnyThread(chunk.level,chunk.locX,chunk.locZ).removeTickingChunk(chunk); // Folia - region threading
+         chunk.chunkStatus = net.minecraft.server.level.FullChunkStatus.FULL;
+     }
+ 
+     public static void onChunkEntityTicking(final LevelChunk chunk, final ChunkHolder holder) {
+-        chunk.level.getCurrentWorldData().addEntityTickingChunk(chunk); // Folia - region threading
++        Level.WORLD_DATA_POOL.getDataAnyThread(chunk.level,chunk.locX,chunk.locZ).addEntityTickingChunk(chunk); // Folia - region threading
+         chunk.chunkStatus = net.minecraft.server.level.FullChunkStatus.ENTITY_TICKING;
+     }
+ 
+     public static void onChunkNotEntityTicking(final LevelChunk chunk, final ChunkHolder holder) {
+-        chunk.level.getCurrentWorldData().removeEntityTickingChunk(chunk); // Folia - region threading
++        Level.WORLD_DATA_POOL.getDataAnyThread(chunk.level,chunk.locX,chunk.locZ).removeEntityTickingChunk(chunk); // Folia - region threading
+         chunk.chunkStatus = net.minecraft.server.level.FullChunkStatus.BLOCK_TICKING;
+     }
+ 
+diff --git a/src/main/java/io/papermc/paper/chunk/system/entity/EntityLookup.java b/src/main/java/io/papermc/paper/chunk/system/entity/EntityLookup.java
+index 5c1cb38eaae73891aba20d121e3ef13dd9dd21db..d1d730033fd0b8190c6c19661702901704bc58a9 100644
+--- a/src/main/java/io/papermc/paper/chunk/system/entity/EntityLookup.java
++++ b/src/main/java/io/papermc/paper/chunk/system/entity/EntityLookup.java
+@@ -890,7 +890,7 @@ public final class EntityLookup implements LevelEntityGetter<Entity> {
+         @Override
+         public void onMove() {
+             final Entity entity = this.entity;
+-            final io.papermc.paper.threadedregions.RegionizedWorldData regionData = entity.level().getCurrentWorldData(); // Folia - region threading
++            final io.papermc.paper.threadedregions.RegionizedWorldData regionData = Level.WORLD_DATA_POOL.getDataAnyThread(entity); // Folia - region threading
+             final Visibility oldVisibility = getEntityStatus(entity);
+             final ChunkEntitySlices newSlices = EntityLookup.this.moveEntity(this.entity);
+             if (newSlices == null) {
+diff --git a/src/main/java/me/earthme/molia/tickcontroller/RegionTickHolder.java b/src/main/java/me/earthme/molia/tickcontroller/RegionTickHolder.java
+index 09e2e6a635957dae4ee039973dd22b6fdcaa17f0..8471989e4fecd22f69e8a395be0a6db26a584768 100644
+--- a/src/main/java/me/earthme/molia/tickcontroller/RegionTickHolder.java
++++ b/src/main/java/me/earthme/molia/tickcontroller/RegionTickHolder.java
+@@ -4,6 +4,8 @@ import com.google.common.collect.Maps;
+ import io.papermc.paper.threadedregions.TickRegionScheduler;
+ import me.earthme.molia.thread.CraftSchedulerRunner;
+ 
++import java.util.ArrayList;
++import java.util.List;
+ import java.util.Map;
+ import java.util.concurrent.atomic.AtomicBoolean;
+ import java.util.concurrent.atomic.AtomicInteger;
+@@ -18,10 +20,18 @@ public class RegionTickHolder {
+     private final AtomicInteger totalTicking = new AtomicInteger();
+     private final AtomicInteger totalIdle = new AtomicInteger();
+     private final AtomicBoolean schedulerRunnerBlocked = new AtomicBoolean(false);
+-    private boolean global_shouldRunNextTick = true;
++    private volatile boolean global_shouldRunNextTick = true;
+     private final Map<TickRegionScheduler.TickThreadRunner,Boolean> single_shouldRunNextTick = Maps.newConcurrentMap();
+     private final Lock accessLock = new ReentrantLock(true);
+ 
++    public List<TickRegionScheduler.TickThreadRunner> getAllRegistedTickThreads(){
++        this.accessLock.lock();
++        try {
++            return new ArrayList<>(this.single_shouldRunNextTick.keySet());
++        }finally {
++            this.accessLock.unlock();
++        }
++    }
+ 
+     public void updateSchedulerRunnerStats(boolean blocked){
+         this.schedulerRunnerBlocked.set(blocked);
+diff --git a/src/main/java/net/minecraft/world/entity/Entity.java b/src/main/java/net/minecraft/world/entity/Entity.java
+index d33ee3507865a35ec69f652e9c07526085a0604b..04cf08b3b94ba04a3c3e0b9d569025285aeb6d17 100644
+--- a/src/main/java/net/minecraft/world/entity/Entity.java
++++ b/src/main/java/net/minecraft/world/entity/Entity.java
+@@ -3842,7 +3842,7 @@ public abstract class Entity implements Nameable, EntityAccess, CommandSource {
+                     for (EntityTreeNode node : fullTree) {
+                         node.root.level.getCurrentWorldData().pendingTeleportationList.add(node.root); //DirtyMolia
+                         node.root.placeSingleSync(originWorld, destination, node, teleportFlags);
+-                        node.root.level.getCurrentWorldData().pendingTeleportationList.remove(node.root);
++                        node.root.level.getCurrentWorldData().pendingTeleportationList.remove(node.root); //DirtyMolia
+                     }
+                     // restore passenger tree
+                     passengerTree.restore();
+diff --git a/src/main/java/org/spigotmc/WatchdogThread.java b/src/main/java/org/spigotmc/WatchdogThread.java
+index 50c72e5db369a180f425eaaa0411cb8871bc3463..3f1a70e73f35c10008bcb9397ead7adc90bdddf0 100644
+--- a/src/main/java/org/spigotmc/WatchdogThread.java
++++ b/src/main/java/org/spigotmc/WatchdogThread.java
+@@ -5,6 +5,10 @@ import java.lang.management.MonitorInfo;
+ import java.lang.management.ThreadInfo;
+ import java.util.logging.Level;
+ import java.util.logging.Logger;
++
++import io.papermc.paper.threadedregions.TickRegionScheduler;
++import me.earthme.molia.thread.CraftSchedulerRunner;
++import me.earthme.molia.tickcontroller.RegionTickHolder;
+ import net.minecraft.server.MinecraftServer;
+ import org.bukkit.Bukkit;
+ 
+@@ -190,10 +194,17 @@ public final class WatchdogThread extends io.papermc.paper.util.TickThread // Pa
+                 }
+                 // Paper end - Different message for short timeout
+                 log.log( Level.SEVERE, "------------------------------" );
+-                log.log( Level.SEVERE, "Server thread dump (Look for plugins here before reporting to Paper!):" ); // Paper
++                log.log( Level.SEVERE, "Region thread dump:" ); // Paper
+                 io.papermc.paper.chunk.system.scheduling.ChunkTaskScheduler.dumpAllChunkLoadInfo(isLongTimeout); // Paper // Paper - rewrite chunk system
+                 this.dumpTickingInfo(); // Paper - log detailed tick information
+-                WatchdogThread.dumpThread( ManagementFactory.getThreadMXBean().getThreadInfo( MinecraftServer.getServer().serverThread.getId(), Integer.MAX_VALUE ), log );
++                //WatchdogThread.dumpThread( ManagementFactory.getThreadMXBean().getThreadInfo( MinecraftServer.getServer().serverThread.getId(), Integer.MAX_VALUE ), log );
++                for (TickRegionScheduler.TickThreadRunner runner : RegionTickHolder.INSTANCE.getAllRegistedTickThreads()){
++                    WatchdogThread.dumpThread(ManagementFactory.getThreadMXBean().getThreadInfo(runner.getId()),log);
++                }
++                log.log( Level.SEVERE, "------------------------------" );
++                log.log( Level.SEVERE, "------------------------------" );
++                log.log( Level.SEVERE, "Scheduler runner thread dump:" ); // Paper
++                WatchdogThread.dumpThread(ManagementFactory.getThreadMXBean().getThreadInfo(CraftSchedulerRunner.RUNNER_INSTANCE.getId()),log);
+                 log.log( Level.SEVERE, "------------------------------" );
+                 //
+                 // Paper start - Only print full dump on long timeouts
