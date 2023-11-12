@@ -48,7 +48,7 @@ jobs:
       uses: svenstaro/upload-release-action@v2
       with:
        release_name: "DirtyMolia MC1.20.2 - ${{ github.event.repository.updated_at}}"
-       tag: "1.20.1-${{ github.run_id }}"
+       tag: "1.20.2-${{ github.run_id }}"
        repo_token: "${{ secrets.GITHUB_TOKEN }}"
        file: "build/libs/molia-1.20.2-dirty-paperclip.jar"
        file_glob: true
